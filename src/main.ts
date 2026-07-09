@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { loadConfig } from "./config.js";
 import { resolveModel } from "./model.js";
 import { runCommand, runCommandFormat } from "./command.js";
@@ -7,6 +7,7 @@ export interface MainOptions {
   level?: string;
   model?: string;
   dryRun?: boolean;
+  adapter?: string;
 }
 
 export function createMainCommand(): Command {
@@ -20,6 +21,11 @@ export function createMainCommand(): Command {
     .option("-l, --level <level>", "task level")
     .option("-m, --model <model>", "explicit model id")
     .option("-d, --dry-run", "print the opencode command without executing")
+    .addOption(
+      new Option("-a, --adapter <adapter>", "multiplexer adapter to use")
+        .default(undefined)
+        .hideHelp()
+    )
     .allowUnknownOption()
     .action(async (positionalLevel: string | undefined, options: MainOptions) => {
       const cliLevel = options.level ?? positionalLevel;

@@ -234,6 +234,46 @@ export function runDoctor(): CheckResult[] {
     );
   }
 
+  // 14. multiplexer.default adapter command templates
+  if (defaultAdapter && typeof defaultAdapter === "object") {
+    const adapter = defaultAdapter as MultiplexerAdapter;
+    const hasStartTemplate =
+      typeof adapter.start_command_template === "string" &&
+      adapter.start_command_template.length > 0;
+    const hasRunTemplate =
+      typeof adapter.run_command_template === "string" &&
+      adapter.run_command_template.length > 0;
+
+    if (hasStartTemplate && hasRunTemplate) {
+      results.push(
+        ok(
+          `multiplexer adapter "${config.multiplexer.default}" has start/run command templates`
+        )
+      );
+    } else {
+      const missing: string[] = [];
+      if (!hasStartTemplate) missing.push("start_command_template");
+      if (!hasRunTemplate) missing.push("run_command_template");
+      results.push(
+        warn(
+          `multiplexer adapter "${config.multiplexer.default}" is missing templates: ${missing.join(", ")}`
+        )
+      );
+    }
+  }
+
+  // 15. herdr CLI in PATH when default adapter is herdr
+  if (config.multiplexer.default === "herdr") {
+    const herdrPath = findExecutable("herdr");
+    if (herdrPath) {
+      results.push(ok(`herdr binary found: ${herdrPath}`));
+    } else {
+      results.push(
+        error("herdr binary not found in PATH (required by multiplexer.default)")
+      );
+    }
+  }
+
   return results;
 }
 
