@@ -93,9 +93,11 @@ export function createRunCommand(): Command {
       const args = ["run", "--model", resolved.modelId, ...extraArgs];
 
       if (dryRun) {
-        console.log(
-          `# Resolved level: ${resolved.levelName ?? config.default_level}`
-        );
+        const displayLevel =
+          resolved.levelName && config.levels[resolved.levelName]
+            ? resolved.levelName
+            : config.default_level;
+        console.log(`# Resolved level: ${displayLevel}`);
         console.log(runCommandFormat(config.opencode_bin, args));
         return;
       }
