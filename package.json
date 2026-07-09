@@ -8,10 +8,10 @@
     "ocgo": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc && chmod +x dist/index.js",
+    "build": "tsc && chmod +x dist/index.js && find dist -name '*.test.js' -delete",
     "start": "node dist/index.js",
     "dev": "bun src/index.ts",
-    "test": "bun test",
+    "test": "bun test src/",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
