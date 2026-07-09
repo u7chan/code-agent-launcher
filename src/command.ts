@@ -13,11 +13,11 @@ export interface RunOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-function escapeShellArg(arg: string): string {
+export function escapeShellArg(arg: string): string {
   return `"${arg.replace(/"/g, '\\"')}"`;
 }
 
-function findExecutable(binName: string): string | undefined {
+export function findExecutable(binName: string): string | undefined {
   try {
     const result = spawnSync(
       "sh",

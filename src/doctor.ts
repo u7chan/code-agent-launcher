@@ -14,36 +14,13 @@ import {
   collectAllModels,
   normalizeModelId,
 } from "./model.js";
+import { findExecutable } from "./command.js";
 
 export type CheckStatus = "OK" | "WARN" | "ERROR";
 
 export interface CheckResult {
   status: CheckStatus;
   message: string;
-}
-
-function escapeShellArg(arg: string): string {
-  return `"${arg.replace(/"/g, '\\"')}"`;
-}
-
-function findExecutable(binName: string): string | undefined {
-  try {
-    const result = spawnSync(
-      "sh",
-      ["-c", `command -v ${escapeShellArg(binName)}`],
-      {
-        shell: false,
-        stdio: "pipe",
-        encoding: "utf-8",
-      }
-    );
-    if (result.status === 0) {
-      return result.stdout.trim();
-    }
-  } catch {
-    // fall through
-  }
-  return undefined;
 }
 
 function ok(message: string): CheckResult {
@@ -168,7 +145,7 @@ export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
     if (options.refresh) {
       modelArgs.push("--refresh");
     }
-    const result = spawnSync(config.opencode_bin, modelArgs, {
+    const result = spawnSync(opencodePath, modelArgs, {
       shell: false,
       stdio: "pipe",
       encoding: "utf-8",
