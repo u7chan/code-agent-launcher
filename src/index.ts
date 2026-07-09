@@ -3,6 +3,7 @@ import { createMainCommand } from "./main.js";
 import { createRunCommand } from "./run.js";
 import { createModelsCommand } from "./models.js";
 import { createDoctorCommand } from "./doctor.js";
+import { createConfigCommand } from "./config-cmd.js";
 import { createMuxCommand } from "./mux/index.js";
 
 async function main(): Promise<void> {
@@ -11,6 +12,7 @@ async function main(): Promise<void> {
   program.addCommand(createRunCommand());
   program.addCommand(createModelsCommand());
   program.addCommand(createDoctorCommand());
+  program.addCommand(createConfigCommand());
   program.addCommand(createMuxCommand());
 
   await program.parseAsync(process.argv);

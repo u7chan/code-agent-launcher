@@ -4,6 +4,7 @@ import {
   isKnownModel,
   resolveModel,
   findSimilarModel,
+  findSimilarLevel,
   listLevels,
   ModelError,
   stripProvider,
@@ -223,6 +224,18 @@ describe("validateKnownModel", () => {
   });
 });
 
+describe("findSimilarLevel", () => {
+  it("suggests close level matches", () => {
+    const suggestion = findSimilarLevel("hidh", makeConfig());
+    expect(suggestion).toBe("high");
+  });
+
+  it("returns undefined for very different inputs", () => {
+    const suggestion = findSimilarLevel("xyz", makeConfig());
+    expect(suggestion).toBeUndefined();
+  });
+});
+
 describe("getLevel", () => {
   it("returns mid level config", () => {
     const level = getLevel(makeConfig(), "mid");
@@ -251,6 +264,12 @@ describe("getLevel", () => {
   it("throws ModelError with available levels in message", () => {
     expect(() => getLevel(makeConfig(), "extreme")).toThrow(
       "Available levels:\n  low\n  mid\n  high"
+    );
+  });
+
+  it("throws ModelError with a suggestion for typos", () => {
+    expect(() => getLevel(makeConfig(), "hidh")).toThrow(
+      "Did you mean:\n  high"
     );
   });
 });

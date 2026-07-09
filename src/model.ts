@@ -94,15 +94,40 @@ export function listLevels(config: Config): string[] {
   return Object.keys(config.levels);
 }
 
+export function findSimilarLevel(
+  input: string,
+  config: Config
+): string | undefined {
+  const levels = listLevels(config);
+  let best: string | undefined;
+  let bestDistance = Infinity;
+
+  for (const level of levels) {
+    const distance = levenshteinDistance(
+      input.toLowerCase(),
+      level.toLowerCase()
+    );
+    if (distance < bestDistance && distance <= Math.max(2, level.length / 3)) {
+      bestDistance = distance;
+      best = level;
+    }
+  }
+
+  return best;
+}
+
 export function getLevel(config: Config, levelName: string): LevelConfig {
   const level = config.levels[levelName];
   if (!level) {
     const available = listLevels(config)
       .map((l) => `  ${l}`)
       .join("\n");
-    throw new ModelError(
-      `unknown level: ${levelName}\n\nAvailable levels:\n${available}`
-    );
+    const suggestion = findSimilarLevel(levelName, config);
+    let message = `unknown level: ${levelName}\n\nAvailable levels:\n${available}`;
+    if (suggestion) {
+      message += `\n\nDid you mean:\n  ${suggestion}`;
+    }
+    throw new ModelError(message);
   }
   return level;
 }

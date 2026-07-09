@@ -58,7 +58,11 @@ function error(message: string): CheckResult {
   return { status: "ERROR", message };
 }
 
-export function runDoctor(): CheckResult[] {
+export interface DoctorOptions {
+  refresh?: boolean;
+}
+
+export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
   const results: CheckResult[] = [];
   const configFile = process.env.OCGO_CONFIG ?? configPath();
 
@@ -160,14 +164,21 @@ export function runDoctor(): CheckResult[] {
   // 10. opencode models opencode-go executable
   let availableModels: string[] = [];
   if (opencodePath) {
-    const result = spawnSync(config.opencode_bin, ["models", config.provider], {
+    const modelArgs = ["models", config.provider];
+    if (options.refresh) {
+      modelArgs.push("--refresh");
+    }
+    const result = spawnSync(config.opencode_bin, modelArgs, {
       shell: false,
       stdio: "pipe",
       encoding: "utf-8",
     });
     if (result.status === 0) {
+      const refreshLabel = options.refresh ? " (refreshed)" : "";
       results.push(
-        ok(`opencode models ${config.provider} executed successfully`)
+        ok(
+          `opencode models ${config.provider} executed successfully${refreshLabel}`
+        )
       );
       availableModels = parseModelList(result.stdout, config.provider);
     } else {
@@ -308,13 +319,18 @@ export function hasErrors(results: CheckResult[]): boolean {
   return results.some((r) => r.status === "ERROR");
 }
 
+export interface DoctorCommandOptions {
+  refresh?: boolean;
+}
+
 export function createDoctorCommand(): Command {
   const command = new Command("doctor");
 
   command
     .description("Validate environment, configuration, and model definitions")
-    .action(() => {
-      const results = runDoctor();
+    .option("--refresh", "Refresh the provider model list before checking")
+    .action((options: DoctorCommandOptions) => {
+      const results = runDoctor({ refresh: options.refresh === true });
       printResults(results);
       if (hasErrors(results)) {
         process.exit(1);
