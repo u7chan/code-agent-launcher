@@ -1,4 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
+import { accessSync, constants } from "node:fs";
+import { delimiter, isAbsolute, join } from "node:path";
 
 export interface CommandResult {
   command: string;
@@ -13,26 +15,42 @@ export interface RunOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+/** Display-only escaping. Never use for process execution. */
 export function escapeShellArg(arg: string): string {
-  return `"${arg.replace(/"/g, '\\"')}"`;
+  return `"${arg.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
-export function findExecutable(binName: string): string | undefined {
+function isExecutable(path: string): boolean {
   try {
-    const result = spawnSync(
-      "sh",
-      ["-c", `command -v ${escapeShellArg(binName)}`],
-      {
-        shell: false,
-        stdio: "pipe",
-        encoding: "utf-8",
-      }
-    );
-    if (result.status === 0) {
-      return result.stdout.trim();
-    }
+    accessSync(path, constants.X_OK);
+    return true;
   } catch {
-    // fall through
+    return false;
+  }
+}
+
+/**
+ * Resolve an executable from PATH without invoking a shell.
+ * Avoids evaluating special characters in binName.
+ */
+export function findExecutable(binName: string): string | undefined {
+  if (!binName || binName.includes("\0")) {
+    return undefined;
+  }
+
+  if (isAbsolute(binName) || binName.includes("/") || binName.includes("\\")) {
+    return isExecutable(binName) ? binName : undefined;
+  }
+
+  const pathEnv = process.env.PATH ?? "";
+  for (const dir of pathEnv.split(delimiter)) {
+    if (!dir) {
+      continue;
+    }
+    const candidate = join(dir, binName);
+    if (isExecutable(candidate)) {
+      return candidate;
+    }
   }
   return undefined;
 }
@@ -61,7 +79,7 @@ export function formatCommandForDisplay(
 ): string {
   const escapedArgs = args.map((arg) => {
     if (/[\s'"\\|&;<>$()`]/.test(arg)) {
-      return `"${arg.replace(/"/g, '\\"')}"`;
+      return `"${arg.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
     }
     return arg;
   });

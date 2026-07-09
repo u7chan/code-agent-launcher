@@ -6,6 +6,60 @@ import { runCommand, runCommandFormat } from "./command.js";
 export interface RunCommandOptions {
   level?: string;
   model?: string;
+  dryRun?: boolean;
+}
+
+/**
+ * Parse `ocgo run` argv so that:
+ * - optional level is taken only from tokens before `--`
+ * - tokens after `--` are always prompt/extra args (never level)
+ */
+export function parseRunArgv(argv: string[]): {
+  positionalLevel?: string;
+  extraArgs: string[];
+} {
+  let start = -1;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "run") {
+      start = i + 1;
+    }
+  }
+  if (start === -1) {
+    return { extraArgs: [] };
+  }
+
+  const rest = argv.slice(start);
+  const dd = rest.indexOf("--");
+  const beforeDd = dd === -1 ? rest : rest.slice(0, dd);
+  const afterDd = dd === -1 ? [] : rest.slice(dd + 1);
+
+  const positionals: string[] = [];
+  for (let i = 0; i < beforeDd.length; i++) {
+    const arg = beforeDd[i];
+    if (arg.startsWith("-")) {
+      if (
+        arg === "--dry-run" ||
+        arg === "-d" ||
+        arg === "--help" ||
+        arg === "-h" ||
+        arg === "--version" ||
+        arg === "-V"
+      ) {
+        continue;
+      }
+      if (arg.includes("=")) {
+        continue;
+      }
+      i += 1;
+      continue;
+    }
+    positionals.push(arg);
+  }
+
+  return {
+    positionalLevel: positionals[0],
+    extraArgs: [...positionals.slice(1), ...afterDd],
+  };
 }
 
 export function createRunCommand(): Command {
@@ -13,16 +67,16 @@ export function createRunCommand(): Command {
 
   command
     .description("Run opencode non-interactively with a prompt")
-    .argument("[level]", "task level (low, mid, high, etc.)")
-    .option("-l, --level <level>", "task level")
-    .option("-m, --model <model>", "explicit model id")
     .allowUnknownOption()
-    .action(async (positionalLevel: string | undefined, options: RunCommandOptions) => {
-      const cliLevel = options.level ?? positionalLevel;
-      const cliModel = options.model;
+    .action(async () => {
+      const globals = command.optsWithGlobals() as RunCommandOptions;
+      const { positionalLevel, extraArgs } = parseRunArgv(process.argv);
+
+      const cliLevel = globals.level ?? positionalLevel;
+      const cliModel = globals.model;
       const envModel = process.env.OCGO_MODEL;
       const envLevel = process.env.OCGO_LEVEL;
-      const dryRun = command.parent?.opts().dryRun === true;
+      const dryRun = globals.dryRun === true;
 
       const config = loadConfig();
       const resolved = resolveModel(config, {
@@ -36,9 +90,6 @@ export function createRunCommand(): Command {
         console.warn(`Warning: ${warning}`);
       }
 
-      const extraArgs = command.args.slice(
-        positionalLevel !== undefined ? 1 : 0
-      );
       const args = ["run", "--model", resolved.modelId, ...extraArgs];
 
       if (dryRun) {

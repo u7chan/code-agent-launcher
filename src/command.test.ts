@@ -1,6 +1,10 @@
 import { describe, it, expect } from "bun:test";
+import { mkdirSync, writeFileSync, chmodSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   buildCommand,
+  findExecutable,
   formatCommandForDisplay,
   runCommandFormat,
 } from "./command.js";
@@ -15,6 +19,32 @@ describe("buildCommand", () => {
   it("keeps args unchanged", () => {
     const result = buildCommand("echo", ["hello", "world"]);
     expect(result.args).toEqual(["hello", "world"]);
+  });
+});
+
+describe("findExecutable", () => {
+  it("resolves a binary from PATH without shell evaluation", () => {
+    const dir = join(tmpdir(), `ocgo-find-exec-${process.pid}`);
+    mkdirSync(dir, { recursive: true });
+    const binPath = join(dir, "ocgo-test-bin");
+    writeFileSync(binPath, "#!/bin/sh\necho ok\n");
+    chmodSync(binPath, 0o755);
+
+    const prevPath = process.env.PATH;
+    process.env.PATH = `${dir}${prevPath ? `:${prevPath}` : ""}`;
+    try {
+      expect(findExecutable("ocgo-test-bin")).toBe(binPath);
+      // Special characters must not be shell-evaluated
+      expect(findExecutable('ocgo-test-bin$(touch /tmp/pwned)')).toBeUndefined();
+      expect(findExecutable("ocgo-test-bin;id")).toBeUndefined();
+    } finally {
+      process.env.PATH = prevPath;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns undefined for missing binaries", () => {
+    expect(findExecutable("non-existent-bin-xyz-12345")).toBeUndefined();
   });
 });
 

@@ -184,27 +184,28 @@ export function resolveModel(
 ): { modelId: string; levelName?: string; warnings: string[] } {
   const warnings: string[] = [];
 
+  const hasExplicitModel = Boolean(options.cliModel || options.envModel);
   const effectiveLevel = options.cliLevel ?? options.envLevel;
-  const levelName = effectiveLevel ?? config.default_level;
-  const level = getLevel(config, levelName);
 
   let rawModel: string | undefined;
+  let levelName: string | undefined = effectiveLevel;
 
-  if (options.cliModel) {
-    rawModel = options.cliModel;
-  } else if (options.envModel) {
-    rawModel = options.envModel;
-  } else if (options.cliLevel) {
-    rawModel = level.default_model;
-  } else if (options.envLevel) {
-    rawModel = level.default_model;
+  if (hasExplicitModel) {
+    rawModel = options.cliModel ?? options.envModel;
+    // Explicit model must not fail on an unrelated invalid OCGO_LEVEL.
+    // CLI-specified level is still validated.
+    if (options.cliLevel !== undefined) {
+      getLevel(config, options.cliLevel);
+    }
   } else {
+    levelName = effectiveLevel ?? config.default_level;
+    const level = getLevel(config, levelName);
     rawModel = level.default_model;
   }
 
   if (!rawModel) {
     throw new ModelError(
-      `could not resolve model for level "${levelName}"`
+      `could not resolve model for level "${levelName ?? config.default_level}"`
     );
   }
 

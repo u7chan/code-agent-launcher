@@ -124,6 +124,39 @@ describe("resolveModel", () => {
     expect(result.warnings.length).toBeGreaterThan(0);
     expect(result.modelId).toBe("opencode-go/unknown-model");
   });
+
+  it("ignores invalid env level when CLI model is explicit", () => {
+    const result = resolveModel(makeConfig(), {
+      cliModel: "qwen3.7-plus",
+      envLevel: "invalid",
+    });
+    expect(result.modelId).toBe("opencode-go/qwen3.7-plus");
+  });
+
+  it("ignores invalid env level when env model is explicit", () => {
+    const result = resolveModel(makeConfig(), {
+      envModel: "qwen3.7-plus",
+      envLevel: "invalid",
+    });
+    expect(result.modelId).toBe("opencode-go/qwen3.7-plus");
+  });
+
+  it("still rejects invalid CLI level even with explicit model", () => {
+    expect(() =>
+      resolveModel(makeConfig(), {
+        cliModel: "qwen3.7-plus",
+        cliLevel: "invalid",
+      })
+    ).toThrow("unknown level");
+  });
+
+  it("rejects invalid env level when model is not explicit", () => {
+    expect(() =>
+      resolveModel(makeConfig(), {
+        envLevel: "invalid",
+      })
+    ).toThrow("unknown level");
+  });
 });
 
 describe("findSimilarModel", () => {
