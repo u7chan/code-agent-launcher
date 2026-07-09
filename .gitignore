@@ -30,3 +30,14 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Node.js / TypeScript
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Package manager lock files (project uses bun, but keep npm/yarn locks ignored if generated)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lock
