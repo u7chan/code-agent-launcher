@@ -1,12 +1,11 @@
-import { existsSync } from "node:fs";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { spawnSync } from "node:child_process";
-import { Command } from "commander";
-import { configPath, loadConfig, ConfigError } from "./config.js";
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
+import { Command } from 'commander'
+import { ConfigError, configPath, loadConfig } from './config.js'
 
 function resolveConfigPath(): string {
-  return process.env.OCGO_CONFIG ?? configPath();
+  return process.env.OCGO_CONFIG ?? configPath()
 }
 
 export const DEFAULT_CONFIG = `version: 1
@@ -56,105 +55,100 @@ multiplexer:
   tmux:
     enabled: false
     note: "tmux is not the primary target. Kept only as a possible future adapter."
-`;
+`
 
 function getEditor(): string | undefined {
-  return process.env.EDITOR || process.env.VISUAL;
+  return process.env.EDITOR || process.env.VISUAL
 }
 
 function findFallbackEditor(): string | undefined {
-  for (const candidate of ["nano", "vim", "vi"]) {
+  for (const candidate of ['nano', 'vim', 'vi']) {
     try {
-      const result = spawnSync("sh", ["-c", `command -v ${candidate}`], {
+      const result = spawnSync('sh', ['-c', `command -v ${candidate}`], {
         shell: false,
-        stdio: "pipe",
-        encoding: "utf-8",
-      });
+        stdio: 'pipe',
+        encoding: 'utf-8',
+      })
       if (result.status === 0 && result.stdout.trim().length > 0) {
-        return candidate;
+        return candidate
       }
     } catch {
       // fall through
     }
   }
-  return undefined;
+  return undefined
 }
 
 export function createConfigCommand(): Command {
-  const command = new Command("config");
+  const command = new Command('config')
 
-  command.description("Manage ocgo configuration");
+  command.description('Manage ocgo configuration')
 
   command
-    .command("path")
-    .description("Show the current config file path")
+    .command('path')
+    .description('Show the current config file path')
     .action(() => {
-      console.log(configPath());
-    });
+      console.log(configPath())
+    })
 
   command
-    .command("init")
-    .description("Create the default config file if it does not exist")
-    .option("-f, --force", "overwrite an existing config file")
-    .option("-d, --dry-run", "print the default config without writing it")
+    .command('init')
+    .description('Create the default config file if it does not exist')
+    .option('-f, --force', 'overwrite an existing config file')
+    .option('-d, --dry-run', 'print the default config without writing it')
     .action((options: { force?: boolean; dryRun?: boolean }) => {
-      const path = resolveConfigPath();
+      const path = resolveConfigPath()
 
       if (options.dryRun) {
-        console.log(DEFAULT_CONFIG);
-        return;
+        console.log(DEFAULT_CONFIG)
+        return
       }
 
       if (existsSync(path) && !options.force) {
-        console.error(
-          `Error: config file already exists: ${path}\n\nUse --force to overwrite.`
-        );
-        process.exit(1);
+        console.error(`Error: config file already exists: ${path}\n\nUse --force to overwrite.`)
+        process.exit(1)
       }
 
       try {
-        mkdirSync(dirname(path), { recursive: true });
-        writeFileSync(path, DEFAULT_CONFIG, "utf-8");
-        console.log(`Created config file: ${path}`);
+        mkdirSync(dirname(path), { recursive: true })
+        writeFileSync(path, DEFAULT_CONFIG, 'utf-8')
+        console.log(`Created config file: ${path}`)
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`Error: failed to create config file: ${message}`);
-        process.exit(1);
+        const message = err instanceof Error ? err.message : String(err)
+        console.error(`Error: failed to create config file: ${message}`)
+        process.exit(1)
       }
-    });
+    })
 
   command
-    .command("edit")
-    .description("Open the config file in an editor")
+    .command('edit')
+    .description('Open the config file in an editor')
     .action(() => {
-      const path = resolveConfigPath();
+      const path = resolveConfigPath()
 
       try {
-        loadConfig(path);
+        loadConfig(path)
       } catch (err) {
-        const message =
-          err instanceof ConfigError ? err.message : String(err);
-        console.error(`Error: ${message}`);
-        process.exit(1);
+        const message = err instanceof ConfigError ? err.message : String(err)
+        console.error(`Error: ${message}`)
+        process.exit(1)
       }
 
-      const editor = getEditor() ?? findFallbackEditor();
+      const editor = getEditor() ?? findFallbackEditor()
       if (!editor) {
-        console.error(
-          "Error: no editor found. Set EDITOR or VISUAL environment variable."
-        );
-        process.exit(1);
+        console.error('Error: no editor found. Set EDITOR or VISUAL environment variable.')
+        process.exit(1)
       }
 
       const result = spawnSync(editor, [path], {
-        stdio: "inherit",
+        stdio: 'inherit',
         shell: false,
-      });
+      })
 
       if (result.status !== 0) {
-        process.exit(result.status ?? 1);
+        process.exit(result.status ?? 1)
       }
-    });
+    })
 
-  return command;
+  return command
 }
