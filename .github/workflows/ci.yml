@@ -1,5 +1,7 @@
 name: CI
 
+# Verified: Issue #8
+
 on:
   pull_request:
     branches: [main]
