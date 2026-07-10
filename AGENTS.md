@@ -1,6 +1,6 @@
 # Agent 向けガイドライン
 
-このリポジトリは汎用コーディングエージェントランチャー `code-agent-launcher` です。主コマンドは `cagent`、`ocgo` は後方互換 alias です。
+このリポジトリは汎用コーディングエージェントランチャー `code-agent-launcher` です。CLI コマンドは `cagent` です。
 
 ## サブエージェントとして OpenCode Go を使う場合
 
@@ -14,4 +14,4 @@
 
 ## 関連ファイル
 
-- `skills/opencodego-subagent/SKILL.md`: OpenCode Go サブエージェント呼び出しの詳細ルール
+- `skills/coding-agent-subagent/SKILL.md`: コーディングエージェントのサブエージェント呼び出しの詳細ルール

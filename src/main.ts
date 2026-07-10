@@ -23,7 +23,7 @@ export function createMainCommand(): Command {
     .option('-l, --level <level>', 'task level')
     .option('-m, --model <model>', 'explicit model id')
     .option('-a, --agent <agent>', 'coding agent id')
-    .option('-d, --dry-run', 'print the opencode command without executing')
+    .option('-d, --dry-run', 'print the resolved command without executing')
     .addOption(
       new Option('--adapter <adapter>', 'multiplexer adapter to use').default(undefined).hideHelp(),
     )
@@ -31,8 +31,8 @@ export function createMainCommand(): Command {
     .action(async (positionalLevel: string | undefined, options: MainOptions) => {
       const cliLevel = options.level ?? positionalLevel
       const cliModel = options.model
-      const envModel = process.env.CAGENT_MODEL ?? process.env.OCGO_MODEL
-      const envLevel = process.env.CAGENT_LEVEL ?? process.env.OCGO_LEVEL
+      const envModel = process.env.CAGENT_MODEL
+      const envLevel = process.env.CAGENT_LEVEL
 
       const config = loadConfig()
       const agentId =

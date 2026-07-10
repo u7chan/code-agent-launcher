@@ -5,7 +5,7 @@ import { Command } from 'commander'
 import { ConfigError, configPath, loadConfig } from './config.js'
 
 function resolveConfigPath(): string {
-  return process.env.CAGENT_CONFIG ?? process.env.OCGO_CONFIG ?? configPath()
+  return process.env.CAGENT_CONFIG ?? configPath()
 }
 
 export const DEFAULT_CONFIG = `version: 2

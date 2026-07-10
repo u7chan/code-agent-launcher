@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import YAML from 'yaml'
@@ -43,13 +43,9 @@ function getConfigHome(): string {
 export function configPath(): string {
   return join(getConfigHome(), 'cagent', 'config.yaml')
 }
-export function legacyConfigPath(): string {
-  return join(getConfigHome(), 'ocgo', 'config.yaml')
-}
 export function resolveConfigPath(): string {
   if (process.env.CAGENT_CONFIG) return process.env.CAGENT_CONFIG
-  if (process.env.OCGO_CONFIG) return process.env.OCGO_CONFIG
-  return existsSync(configPath()) ? configPath() : legacyConfigPath()
+  return configPath()
 }
 export class ConfigError extends Error {
   constructor(message: string) {

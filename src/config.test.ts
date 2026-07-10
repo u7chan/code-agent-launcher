@@ -9,16 +9,16 @@ describe('loadConfig', () => {
   let originalConfig: string | undefined
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'ocgo-config-test-'))
-    originalConfig = process.env.OCGO_CONFIG
+    tmpDir = mkdtempSync(join(tmpdir(), 'cagent-config-test-'))
+    originalConfig = process.env.CAGENT_CONFIG
   })
 
   afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true })
     if (originalConfig === undefined) {
-      delete process.env.OCGO_CONFIG
+      delete process.env.CAGENT_CONFIG
     } else {
-      process.env.OCGO_CONFIG = originalConfig
+      process.env.CAGENT_CONFIG = originalConfig
     }
   })
 
@@ -42,7 +42,7 @@ multiplexer:
     enabled: true
 `,
     )
-    process.env.OCGO_CONFIG = configFile
+    process.env.CAGENT_CONFIG = configFile
 
     const config = loadConfig()
     expect(config.version).toBe(2)
@@ -53,14 +53,14 @@ multiplexer:
   })
 
   it('throws ConfigError for missing file', () => {
-    process.env.OCGO_CONFIG = join(tmpDir, 'missing.yaml')
+    process.env.CAGENT_CONFIG = join(tmpDir, 'missing.yaml')
     expect(() => loadConfig()).toThrow(ConfigError)
   })
 
   it('throws ConfigError for invalid YAML', () => {
     const configFile = join(tmpDir, 'config.yaml')
     writeFileSync(configFile, 'not: valid: yaml: [')
-    process.env.OCGO_CONFIG = configFile
+    process.env.CAGENT_CONFIG = configFile
     expect(() => loadConfig()).toThrow(ConfigError)
   })
 
@@ -84,7 +84,7 @@ multiplexer:
     enabled: true
 `,
     )
-    process.env.OCGO_CONFIG = configFile
+    process.env.CAGENT_CONFIG = configFile
     expect(() => loadConfig()).toThrow(ConfigError)
   })
 })
@@ -118,26 +118,19 @@ describe('config v2', () => {
       rmSync(file, { force: true })
     }
   })
-  it('prefers CAGENT_CONFIG over OCGO_CONFIG', () => {
+  it('uses CAGENT_CONFIG', () => {
     const primary = join(tmpdir(), `cagent-primary-${process.pid}.yaml`)
-    const legacy = join(tmpdir(), `cagent-legacy-${process.pid}.yaml`)
     const yaml = (bin: string) =>
       `version: 1\nopencode_bin: ${bin}\nprovider: opencode-go\ndefault_level: low\nlevels:\n  low:\n    description: Simple\n    default_model: qwen\n    models: [qwen]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`
     writeFileSync(primary, yaml('primary'))
-    writeFileSync(legacy, yaml('legacy'))
     const oldPrimary = process.env.CAGENT_CONFIG
-    const oldLegacy = process.env.OCGO_CONFIG
     process.env.CAGENT_CONFIG = primary
-    process.env.OCGO_CONFIG = legacy
     try {
       expect(loadConfig().opencode_bin).toBe('primary')
     } finally {
       if (oldPrimary === undefined) delete process.env.CAGENT_CONFIG
       else process.env.CAGENT_CONFIG = oldPrimary
-      if (oldLegacy === undefined) delete process.env.OCGO_CONFIG
-      else process.env.OCGO_CONFIG = oldLegacy
       rmSync(primary, { force: true })
-      rmSync(legacy, { force: true })
     }
   })
 })

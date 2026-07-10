@@ -1,4 +1,4 @@
-import { getAgent, type Config, type LevelConfig } from './config.js'
+import { type Config, getAgent, type LevelConfig } from './config.js'
 
 export interface ResolveOptions {
   agent?: string
@@ -199,7 +199,7 @@ export function resolveModel(
 
   if (hasExplicitModel) {
     rawModel = options.cliModel ?? options.envModel
-    // Explicit model must not fail on an unrelated invalid OCGO_LEVEL.
+    // An explicit model must not fail on an unrelated environment level.
     // CLI-specified level is still validated.
     if (options.cliLevel !== undefined) {
       getLevel(config, options.cliLevel, options.agent)

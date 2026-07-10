@@ -12,7 +12,7 @@ export interface RunCommandOptions {
 }
 
 /**
- * Parse `ocgo run` argv so that:
+ * Parse `cagent run` argv so that:
  * - optional level is taken only from tokens before `--`
  * - tokens after `--` are always prompt/extra args (never level)
  */
@@ -77,8 +77,8 @@ export function createRunCommand(): Command {
 
       const cliLevel = globals.level ?? positionalLevel
       const cliModel = globals.model
-      const envModel = process.env.CAGENT_MODEL ?? process.env.OCGO_MODEL
-      const envLevel = process.env.CAGENT_LEVEL ?? process.env.OCGO_LEVEL
+      const envModel = process.env.CAGENT_MODEL
+      const envLevel = process.env.CAGENT_LEVEL
       const dryRun = globals.dryRun === true
 
       const config = loadConfig()

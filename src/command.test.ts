@@ -24,19 +24,19 @@ describe('buildCommand', () => {
 
 describe('findExecutable', () => {
   it('resolves a binary from PATH without shell evaluation', () => {
-    const dir = join(tmpdir(), `ocgo-find-exec-${process.pid}`)
+    const dir = join(tmpdir(), `cagent-find-exec-${process.pid}`)
     mkdirSync(dir, { recursive: true })
-    const binPath = join(dir, 'ocgo-test-bin')
+    const binPath = join(dir, 'cagent-test-bin')
     writeFileSync(binPath, '#!/bin/sh\necho ok\n')
     chmodSync(binPath, 0o755)
 
     const prevPath = process.env.PATH
     process.env.PATH = `${dir}${prevPath ? `:${prevPath}` : ''}`
     try {
-      expect(findExecutable('ocgo-test-bin')).toBe(binPath)
+      expect(findExecutable('cagent-test-bin')).toBe(binPath)
       // Special characters must not be shell-evaluated
-      expect(findExecutable('ocgo-test-bin$(touch /tmp/pwned)')).toBeUndefined()
-      expect(findExecutable('ocgo-test-bin;id')).toBeUndefined()
+      expect(findExecutable('cagent-test-bin$(touch /tmp/pwned)')).toBeUndefined()
+      expect(findExecutable('cagent-test-bin;id')).toBeUndefined()
     } finally {
       process.env.PATH = prevPath
       rmSync(dir, { recursive: true, force: true })

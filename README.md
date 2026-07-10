@@ -1,6 +1,6 @@
 # code-agent-launcher
 
-コーディングエージェント用ランチャー。主コマンドは `cagent` で、既存の `ocgo` は OpenCode Go 向けの後方互換 alias として維持されます。
+コーディングエージェント用ランチャー。CLI コマンドは `cagent` です。
 
 ## 主な機能
 
@@ -33,4 +33,4 @@ cagent doctor
 
 ## エージェント向けルール
 
-設定は `~/.config/cagent/config.yaml` を優先し、旧 `~/.config/ocgo/config.yaml` を fallback とします。環境変数は `CAGENT_CONFIG` / `CAGENT_AGENT` / `CAGENT_MODEL` / `CAGENT_LEVEL` を優先し、`OCGO_CONFIG` / `OCGO_MODEL` / `OCGO_LEVEL` を fallback とします。
+設定ファイルは `~/.config/cagent/config.yaml` です。環境変数には `CAGENT_CONFIG` / `CAGENT_AGENT` / `CAGENT_MODEL` / `CAGENT_LEVEL` を使用します。

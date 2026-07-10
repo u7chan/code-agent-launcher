@@ -30,7 +30,7 @@ export function validateMuxAdapter(config: Config, adapterName: string): Multipl
   if (!adapter || typeof adapter !== 'object' || !(adapter as MultiplexerAdapter).enabled) {
     throw new MuxAdapterError(
       `multiplexer adapter is not enabled: ${adapterName}\n\nCheck:\n  ${
-        process.env.CAGENT_CONFIG ?? process.env.OCGO_CONFIG ?? configPath()
+        process.env.CAGENT_CONFIG ?? configPath()
       }`,
     )
   }
@@ -48,8 +48,8 @@ async function dispatchMux(mode: 'start' | 'run', level: string, command: Comman
     cliModel: muxOpts.model,
     cliLevel: level,
     agent: muxOpts.agent ?? process.env.CAGENT_AGENT ?? config.default_agent ?? 'opencode-go',
-    envModel: process.env.CAGENT_MODEL ?? process.env.OCGO_MODEL,
-    envLevel: process.env.CAGENT_LEVEL ?? process.env.OCGO_LEVEL,
+    envModel: process.env.CAGENT_MODEL,
+    envLevel: process.env.CAGENT_LEVEL,
   })
 
   for (const warning of resolved.warnings) {

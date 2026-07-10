@@ -5,8 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "cagent": "dist/index.js",
-    "ocgo": "dist/index.js"
+    "cagent": "dist/index.js"
   },
   "scripts": {
     "build": "tsc && chmod +x dist/index.js && find dist -name '*.test.js' -delete",
