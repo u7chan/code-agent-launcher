@@ -1,24 +1,24 @@
-import { Command } from "commander";
-import { loadConfig } from "./config.js";
-import { runCommand, runCommandFormat } from "./command.js";
+import { Command } from 'commander';
+import { loadConfig } from './config.js';
+import { runCommand, runCommandFormat } from './command.js';
 
 export interface ModelsCommandOptions {
   refresh?: boolean;
 }
 
 export function createModelsCommand(): Command {
-  const command = new Command("models");
+  const command = new Command('models');
 
   command
-    .description("List available OpenCode Go models")
-    .option("--refresh", "Refresh the model list from the provider")
+    .description('List available OpenCode Go models')
+    .option('--refresh', 'Refresh the model list from the provider')
     .action(async (options: ModelsCommandOptions) => {
       const config = loadConfig();
       const dryRun = command.parent?.opts().dryRun === true;
-      const args = ["models", config.provider];
+      const args = ['models', config.provider];
 
       if (options.refresh) {
-        args.push("--refresh");
+        args.push('--refresh');
       }
 
       if (dryRun) {
@@ -27,7 +27,7 @@ export function createModelsCommand(): Command {
       }
 
       const result = await runCommand(config.opencode_bin, args, {
-        stdio: "inherit",
+        stdio: 'inherit',
       });
 
       if (result.exitCode !== 0 && result.exitCode !== null) {

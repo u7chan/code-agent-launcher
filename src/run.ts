@@ -1,7 +1,7 @@
-import { Command } from "commander";
-import { loadConfig } from "./config.js";
-import { resolveModel } from "./model.js";
-import { runCommand, runCommandFormat } from "./command.js";
+import { Command } from 'commander';
+import { loadConfig } from './config.js';
+import { resolveModel } from './model.js';
+import { runCommand, runCommandFormat } from './command.js';
 
 export interface RunCommandOptions {
   level?: string;
@@ -20,7 +20,7 @@ export function parseRunArgv(argv: string[]): {
 } {
   let start = -1;
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "run") {
+    if (argv[i] === 'run') {
       start = i + 1;
     }
   }
@@ -29,25 +29,25 @@ export function parseRunArgv(argv: string[]): {
   }
 
   const rest = argv.slice(start);
-  const dd = rest.indexOf("--");
+  const dd = rest.indexOf('--');
   const beforeDd = dd === -1 ? rest : rest.slice(0, dd);
   const afterDd = dd === -1 ? [] : rest.slice(dd + 1);
 
   const positionals: string[] = [];
   for (let i = 0; i < beforeDd.length; i++) {
     const arg = beforeDd[i];
-    if (arg.startsWith("-")) {
+    if (arg.startsWith('-')) {
       if (
-        arg === "--dry-run" ||
-        arg === "-d" ||
-        arg === "--help" ||
-        arg === "-h" ||
-        arg === "--version" ||
-        arg === "-V"
+        arg === '--dry-run' ||
+        arg === '-d' ||
+        arg === '--help' ||
+        arg === '-h' ||
+        arg === '--version' ||
+        arg === '-V'
       ) {
         continue;
       }
-      if (arg.includes("=")) {
+      if (arg.includes('=')) {
         continue;
       }
       i += 1;
@@ -63,10 +63,10 @@ export function parseRunArgv(argv: string[]): {
 }
 
 export function createRunCommand(): Command {
-  const command = new Command("run");
+  const command = new Command('run');
 
   command
-    .description("Run opencode non-interactively with a prompt")
+    .description('Run opencode non-interactively with a prompt')
     .allowUnknownOption()
     .action(async () => {
       const globals = command.optsWithGlobals() as RunCommandOptions;
@@ -90,7 +90,7 @@ export function createRunCommand(): Command {
         console.warn(`Warning: ${warning}`);
       }
 
-      const args = ["run", "--model", resolved.modelId, ...extraArgs];
+      const args = ['run', '--model', resolved.modelId, ...extraArgs];
 
       if (dryRun) {
         const displayLevel =
@@ -103,7 +103,7 @@ export function createRunCommand(): Command {
       }
 
       const result = await runCommand(config.opencode_bin, args, {
-        stdio: "inherit",
+        stdio: 'inherit',
       });
 
       if (result.exitCode !== 0 && result.exitCode !== null) {

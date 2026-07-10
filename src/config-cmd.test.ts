@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach, spyOn } from "bun:test";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { createConfigCommand, DEFAULT_CONFIG } from "./config-cmd.js";
-import { configPath } from "./config.js";
+import { describe, it, expect, beforeEach, afterEach, spyOn } from 'bun:test';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { createConfigCommand, DEFAULT_CONFIG } from './config-cmd.js';
+import { configPath } from './config.js';
 
-describe("createConfigCommand", () => {
+describe('createConfigCommand', () => {
   let tmpDir: string;
   let originalConfig: string | undefined;
   let originalXdg: string | undefined;
@@ -13,12 +13,12 @@ describe("createConfigCommand", () => {
   let originalVisual: string | undefined;
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), "ocgo-config-cmd-test-"));
+    tmpDir = mkdtempSync(join(tmpdir(), 'ocgo-config-cmd-test-'));
     originalConfig = process.env.OCGO_CONFIG;
     originalXdg = process.env.XDG_CONFIG_HOME;
     originalEditor = process.env.EDITOR;
     originalVisual = process.env.VISUAL;
-    process.env.XDG_CONFIG_HOME = join(tmpDir, "xdg-config");
+    process.env.XDG_CONFIG_HOME = join(tmpDir, 'xdg-config');
     delete process.env.OCGO_CONFIG;
   });
 
@@ -46,12 +46,12 @@ describe("createConfigCommand", () => {
     }
   });
 
-  describe("config path", () => {
-    it("prints the current config file path", async () => {
+  describe('config path', () => {
+    it('prints the current config file path', async () => {
       const command = createConfigCommand();
-      const logSpy = spyOn(console, "log").mockImplementation(() => {});
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {});
       try {
-        await command.parseAsync(["node", "ocgo", "path"]);
+        await command.parseAsync(['node', 'ocgo', 'path']);
         expect(logSpy).toHaveBeenCalledWith(configPath());
       } finally {
         logSpy.mockRestore();
@@ -59,64 +59,62 @@ describe("createConfigCommand", () => {
     });
   });
 
-  describe("config init", () => {
-    it("creates the default config when file does not exist", async () => {
+  describe('config init', () => {
+    it('creates the default config when file does not exist', async () => {
       const command = createConfigCommand();
-      const logSpy = spyOn(console, "log").mockImplementation(() => {});
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {});
       try {
-        await command.parseAsync(["node", "ocgo", "init"]);
+        await command.parseAsync(['node', 'ocgo', 'init']);
         const path = configPath();
         expect(existsSync(path)).toBe(true);
-        expect(readFileSync(path, "utf-8")).toBe(DEFAULT_CONFIG);
+        expect(readFileSync(path, 'utf-8')).toBe(DEFAULT_CONFIG);
         expect(logSpy).toHaveBeenCalledWith(`Created config file: ${path}`);
       } finally {
         logSpy.mockRestore();
       }
     });
 
-    it("errors when config file already exists", async () => {
+    it('errors when config file already exists', async () => {
       const path = configPath();
       mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(path, "existing: config\n", "utf-8");
+      writeFileSync(path, 'existing: config\n', 'utf-8');
       const command = createConfigCommand();
-      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-        throw new Error("process.exit");
+      const errorSpy = spyOn(console, 'error').mockImplementation(() => {});
+      const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit');
       });
       try {
-        await expect(
-          command.parseAsync(["node", "ocgo", "init"])
-        ).rejects.toThrow("process.exit");
+        await expect(command.parseAsync(['node', 'ocgo', 'init'])).rejects.toThrow('process.exit');
         expect(errorSpy).toHaveBeenCalled();
         const call = errorSpy.mock.calls[0];
         expect(call).toBeArray();
-        expect(String(call[0])).toContain("already exists");
+        expect(String(call[0])).toContain('already exists');
       } finally {
         errorSpy.mockRestore();
         exitSpy.mockRestore();
       }
     });
 
-    it("overwrites existing config with --force", async () => {
+    it('overwrites existing config with --force', async () => {
       const path = configPath();
       mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(path, "existing: config\n", "utf-8");
+      writeFileSync(path, 'existing: config\n', 'utf-8');
       const command = createConfigCommand();
-      const logSpy = spyOn(console, "log").mockImplementation(() => {});
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {});
       try {
-        await command.parseAsync(["node", "ocgo", "init", "--force"]);
-        expect(readFileSync(path, "utf-8")).toBe(DEFAULT_CONFIG);
+        await command.parseAsync(['node', 'ocgo', 'init', '--force']);
+        expect(readFileSync(path, 'utf-8')).toBe(DEFAULT_CONFIG);
         expect(logSpy).toHaveBeenCalledWith(`Created config file: ${path}`);
       } finally {
         logSpy.mockRestore();
       }
     });
 
-    it("prints default config with --dry-run without writing", async () => {
+    it('prints default config with --dry-run without writing', async () => {
       const command = createConfigCommand();
-      const logSpy = spyOn(console, "log").mockImplementation(() => {});
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {});
       try {
-        await command.parseAsync(["node", "ocgo", "init", "--dry-run"]);
+        await command.parseAsync(['node', 'ocgo', 'init', '--dry-run']);
         expect(logSpy).toHaveBeenCalledWith(DEFAULT_CONFIG);
         expect(existsSync(configPath())).toBe(false);
       } finally {
@@ -124,39 +122,37 @@ describe("createConfigCommand", () => {
       }
     });
 
-    it("respects OCGO_CONFIG for init path", async () => {
-      const customPath = join(tmpDir, "custom-init.yaml");
+    it('respects OCGO_CONFIG for init path', async () => {
+      const customPath = join(tmpDir, 'custom-init.yaml');
       const command = createConfigCommand();
-      const logSpy = spyOn(console, "log").mockImplementation(() => {});
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {});
       process.env.OCGO_CONFIG = customPath;
       try {
-        await command.parseAsync(["node", "ocgo", "init"]);
+        await command.parseAsync(['node', 'ocgo', 'init']);
         expect(existsSync(customPath)).toBe(true);
-        expect(readFileSync(customPath, "utf-8")).toBe(DEFAULT_CONFIG);
+        expect(readFileSync(customPath, 'utf-8')).toBe(DEFAULT_CONFIG);
         expect(logSpy).toHaveBeenCalledWith(`Created config file: ${customPath}`);
       } finally {
         logSpy.mockRestore();
       }
     });
 
-    it("errors via OCGO_CONFIG when config file already exists", async () => {
-      const customPath = join(tmpDir, "existing-init.yaml");
+    it('errors via OCGO_CONFIG when config file already exists', async () => {
+      const customPath = join(tmpDir, 'existing-init.yaml');
       mkdirSync(dirname(customPath), { recursive: true });
-      writeFileSync(customPath, "existing: config\n", "utf-8");
+      writeFileSync(customPath, 'existing: config\n', 'utf-8');
       process.env.OCGO_CONFIG = customPath;
       const command = createConfigCommand();
-      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-        throw new Error("process.exit");
+      const errorSpy = spyOn(console, 'error').mockImplementation(() => {});
+      const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit');
       });
       try {
-        await expect(
-          command.parseAsync(["node", "ocgo", "init"])
-        ).rejects.toThrow("process.exit");
+        await expect(command.parseAsync(['node', 'ocgo', 'init'])).rejects.toThrow('process.exit');
         expect(errorSpy).toHaveBeenCalled();
         const call = errorSpy.mock.calls[0];
         expect(call).toBeArray();
-        expect(String(call[0])).toContain("already exists");
+        expect(String(call[0])).toContain('already exists');
       } finally {
         errorSpy.mockRestore();
         exitSpy.mockRestore();
@@ -164,17 +160,15 @@ describe("createConfigCommand", () => {
     });
   });
 
-  describe("config edit", () => {
-    it("errors when config file does not exist", async () => {
+  describe('config edit', () => {
+    it('errors when config file does not exist', async () => {
       const command = createConfigCommand();
-      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-        throw new Error("process.exit");
+      const errorSpy = spyOn(console, 'error').mockImplementation(() => {});
+      const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit');
       });
       try {
-        await expect(
-          command.parseAsync(["node", "ocgo", "edit"])
-        ).rejects.toThrow("process.exit");
+        await expect(command.parseAsync(['node', 'ocgo', 'edit'])).rejects.toThrow('process.exit');
         expect(errorSpy).toHaveBeenCalled();
       } finally {
         errorSpy.mockRestore();
@@ -182,47 +176,43 @@ describe("createConfigCommand", () => {
       }
     });
 
-    it("errors when editor exits with non-zero status", async () => {
+    it('errors when editor exits with non-zero status', async () => {
       const path = configPath();
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(
         path,
         `version: 1\nopencode_bin: opencode\nprovider: opencode-go\ndefault_level: mid\nlevels:\n  mid:\n    description: Normal\n    default_model: deepseek-v4-pro\n    models:\n      - deepseek-v4-pro\nmultiplexer:\n  default: herdr\n  herdr:\n    enabled: true\n`,
-        "utf-8"
+        'utf-8',
       );
-      process.env.EDITOR = "false";
+      process.env.EDITOR = 'false';
       delete process.env.VISUAL;
       const command = createConfigCommand();
-      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-        throw new Error("process.exit");
+      const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit');
       });
       try {
-        await expect(
-          command.parseAsync(["node", "ocgo", "edit"])
-        ).rejects.toThrow("process.exit");
+        await expect(command.parseAsync(['node', 'ocgo', 'edit'])).rejects.toThrow('process.exit');
       } finally {
         exitSpy.mockRestore();
       }
     });
 
-    it("respects OCGO_CONFIG for edit path", async () => {
-      const customPath = join(tmpDir, "custom-edit.yaml");
+    it('respects OCGO_CONFIG for edit path', async () => {
+      const customPath = join(tmpDir, 'custom-edit.yaml');
       writeFileSync(
         customPath,
         `version: 1\nopencode_bin: opencode\nprovider: opencode-go\ndefault_level: mid\nlevels:\n  mid:\n    description: Normal\n    default_model: deepseek-v4-pro\n    models:\n      - deepseek-v4-pro\nmultiplexer:\n  default: herdr\n  herdr:\n    enabled: true\n`,
-        "utf-8"
+        'utf-8',
       );
       process.env.OCGO_CONFIG = customPath;
-      process.env.EDITOR = "false";
+      process.env.EDITOR = 'false';
       delete process.env.VISUAL;
       const command = createConfigCommand();
-      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-        throw new Error("process.exit");
+      const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit');
       });
       try {
-        await expect(
-          command.parseAsync(["node", "ocgo", "edit"])
-        ).rejects.toThrow("process.exit");
+        await expect(command.parseAsync(['node', 'ocgo', 'edit'])).rejects.toThrow('process.exit');
       } finally {
         exitSpy.mockRestore();
       }

@@ -1,6 +1,6 @@
-import { spawn, spawnSync } from "node:child_process";
-import { accessSync, constants } from "node:fs";
-import { delimiter, isAbsolute, join } from "node:path";
+import { spawn, spawnSync } from 'node:child_process';
+import { accessSync, constants } from 'node:fs';
+import { delimiter, isAbsolute, join } from 'node:path';
 
 export interface CommandResult {
   command: string;
@@ -10,14 +10,14 @@ export interface CommandResult {
 
 export interface RunOptions {
   dryRun?: boolean;
-  stdio?: "inherit" | "pipe";
+  stdio?: 'inherit' | 'pipe';
   cwd?: string;
   env?: NodeJS.ProcessEnv;
 }
 
 /** Display-only escaping. Never use for process execution. */
 export function escapeShellArg(arg: string): string {
-  return `"${arg.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  return `"${arg.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
 function isExecutable(path: string): boolean {
@@ -34,15 +34,15 @@ function isExecutable(path: string): boolean {
  * Avoids evaluating special characters in binName.
  */
 export function findExecutable(binName: string): string | undefined {
-  if (!binName || binName.includes("\0")) {
+  if (!binName || binName.includes('\0')) {
     return undefined;
   }
 
-  if (isAbsolute(binName) || binName.includes("/") || binName.includes("\\")) {
+  if (isAbsolute(binName) || binName.includes('/') || binName.includes('\\')) {
     return isExecutable(binName) ? binName : undefined;
   }
 
-  const pathEnv = process.env.PATH ?? "";
+  const pathEnv = process.env.PATH ?? '';
   for (const dir of pathEnv.split(delimiter)) {
     if (!dir) {
       continue;
@@ -65,7 +65,7 @@ export function resolveOpenCodeBin(opencodeBin: string): string {
 
 export function buildCommand(
   opencodeBin: string,
-  args: string[]
+  args: string[],
 ): { command: string; args: string[] } {
   return {
     command: resolveOpenCodeBin(opencodeBin),
@@ -73,17 +73,14 @@ export function buildCommand(
   };
 }
 
-export function formatCommandForDisplay(
-  command: string,
-  args: string[]
-): string {
+export function formatCommandForDisplay(command: string, args: string[]): string {
   const escapedArgs = args.map((arg) => {
     if (/[\s'"\\|&;<>$()`]/.test(arg)) {
-      return `"${arg.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+      return `"${arg.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
     }
     return arg;
   });
-  return [command, ...escapedArgs].join(" ");
+  return [command, ...escapedArgs].join(' ');
 }
 
 export function runCommandFormat(opencodeBin: string, args: string[]): string {
@@ -94,7 +91,7 @@ export function runCommandFormat(opencodeBin: string, args: string[]): string {
 export function runCommand(
   opencodeBin: string,
   args: string[],
-  options: RunOptions = {}
+  options: RunOptions = {},
 ): Promise<CommandResult> {
   const { command, args: cmdArgs } = buildCommand(opencodeBin, args);
 
@@ -105,17 +102,17 @@ export function runCommand(
 
   return new Promise((resolve, reject) => {
     const child = spawn(command, cmdArgs, {
-      stdio: options.stdio ?? "inherit",
+      stdio: options.stdio ?? 'inherit',
       cwd: options.cwd,
       env: options.env ?? process.env,
       shell: false,
     });
 
-    child.on("error", (err) => {
+    child.on('error', (err) => {
       reject(err);
     });
 
-    child.on("close", (exitCode) => {
+    child.on('close', (exitCode) => {
       resolve({ command, args: cmdArgs, exitCode });
     });
   });
@@ -124,7 +121,7 @@ export function runCommand(
 export function runCommandSync(
   opencodeBin: string,
   args: string[],
-  options: RunOptions = {}
+  options: RunOptions = {},
 ): CommandResult {
   const { command, args: cmdArgs } = buildCommand(opencodeBin, args);
 
@@ -134,7 +131,7 @@ export function runCommandSync(
   }
 
   const result = spawnSync(command, cmdArgs, {
-    stdio: options.stdio ?? "inherit",
+    stdio: options.stdio ?? 'inherit',
     cwd: options.cwd,
     env: options.env ?? process.env,
     shell: false,

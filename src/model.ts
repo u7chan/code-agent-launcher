@@ -1,4 +1,4 @@
-import type { Config, LevelConfig } from "./config.js";
+import type { Config, LevelConfig } from './config.js';
 
 export interface ResolveOptions {
   cliModel?: string;
@@ -10,16 +10,16 @@ export interface ResolveOptions {
 export class ModelError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "ModelError";
+    this.name = 'ModelError';
   }
 }
 
 export function normalizeModelId(modelId: string, provider: string): string {
   const trimmed = modelId.trim();
   if (trimmed.length === 0) {
-    throw new ModelError("model id is empty");
+    throw new ModelError('model id is empty');
   }
-  if (trimmed.includes("/")) {
+  if (trimmed.includes('/')) {
     return trimmed;
   }
   return `${provider}/${trimmed}`;
@@ -74,13 +74,13 @@ export function isProviderModel(modelId: string, provider: string): boolean {
 
 export function validateKnownModel(
   modelId: string,
-  config: Config
+  config: Config,
 ): { known: boolean; warning?: string } {
   if (isKnownModel(modelId, config)) {
     return { known: true };
   }
 
-  if (modelId.includes("/")) {
+  if (modelId.includes('/')) {
     return {
       known: false,
       warning: `unknown model: ${modelId} (full id allowed but not listed in config)`,
@@ -94,19 +94,13 @@ export function listLevels(config: Config): string[] {
   return Object.keys(config.levels);
 }
 
-export function findSimilarLevel(
-  input: string,
-  config: Config
-): string | undefined {
+export function findSimilarLevel(input: string, config: Config): string | undefined {
   const levels = listLevels(config);
   let best: string | undefined;
   let bestDistance = Infinity;
 
   for (const level of levels) {
-    const distance = levenshteinDistance(
-      input.toLowerCase(),
-      level.toLowerCase()
-    );
+    const distance = levenshteinDistance(input.toLowerCase(), level.toLowerCase());
     if (distance < bestDistance && distance <= Math.max(2, level.length / 3)) {
       bestDistance = distance;
       best = level;
@@ -121,7 +115,7 @@ export function getLevel(config: Config, levelName: string): LevelConfig {
   if (!level) {
     const available = listLevels(config)
       .map((l) => `  ${l}`)
-      .join("\n");
+      .join('\n');
     const suggestion = findSimilarLevel(levelName, config);
     let message = `unknown level: ${levelName}\n\nAvailable levels:\n${available}`;
     if (suggestion) {
@@ -132,19 +126,13 @@ export function getLevel(config: Config, levelName: string): LevelConfig {
   return level;
 }
 
-export function findSimilarModel(
-  input: string,
-  config: Config
-): string | undefined {
+export function findSimilarModel(input: string, config: Config): string | undefined {
   const models = collectAllModels(config);
   let best: string | undefined;
   let bestDistance = Infinity;
 
   for (const model of models) {
-    const distance = levenshteinDistance(
-      input.toLowerCase(),
-      model.toLowerCase()
-    );
+    const distance = levenshteinDistance(input.toLowerCase(), model.toLowerCase());
     if (distance < bestDistance && distance <= Math.max(3, model.length / 3)) {
       bestDistance = distance;
       best = model;
@@ -170,7 +158,7 @@ function levenshteinDistance(a: string, b: string): number {
       matrix[i][j] = Math.min(
         matrix[i - 1][j] + 1,
         matrix[i][j - 1] + 1,
-        matrix[i - 1][j - 1] + cost
+        matrix[i - 1][j - 1] + cost,
       );
     }
   }
@@ -180,7 +168,7 @@ function levenshteinDistance(a: string, b: string): number {
 
 export function resolveModel(
   config: Config,
-  options: ResolveOptions
+  options: ResolveOptions,
 ): { modelId: string; levelName?: string; warnings: string[] } {
   const warnings: string[] = [];
 
@@ -205,7 +193,7 @@ export function resolveModel(
 
   if (!rawModel) {
     throw new ModelError(
-      `could not resolve model for level "${levelName ?? config.default_level}"`
+      `could not resolve model for level "${levelName ?? config.default_level}"`,
     );
   }
 

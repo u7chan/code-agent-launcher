@@ -1,9 +1,9 @@
-import { existsSync } from "node:fs";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { spawnSync } from "node:child_process";
-import { Command } from "commander";
-import { configPath, loadConfig, ConfigError } from "./config.js";
+import { existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { Command } from 'commander';
+import { configPath, loadConfig, ConfigError } from './config.js';
 
 function resolveConfigPath(): string {
   return process.env.OCGO_CONFIG ?? configPath();
@@ -63,12 +63,12 @@ function getEditor(): string | undefined {
 }
 
 function findFallbackEditor(): string | undefined {
-  for (const candidate of ["nano", "vim", "vi"]) {
+  for (const candidate of ['nano', 'vim', 'vi']) {
     try {
-      const result = spawnSync("sh", ["-c", `command -v ${candidate}`], {
+      const result = spawnSync('sh', ['-c', `command -v ${candidate}`], {
         shell: false,
-        stdio: "pipe",
-        encoding: "utf-8",
+        stdio: 'pipe',
+        encoding: 'utf-8',
       });
       if (result.status === 0 && result.stdout.trim().length > 0) {
         return candidate;
@@ -81,22 +81,22 @@ function findFallbackEditor(): string | undefined {
 }
 
 export function createConfigCommand(): Command {
-  const command = new Command("config");
+  const command = new Command('config');
 
-  command.description("Manage ocgo configuration");
+  command.description('Manage ocgo configuration');
 
   command
-    .command("path")
-    .description("Show the current config file path")
+    .command('path')
+    .description('Show the current config file path')
     .action(() => {
       console.log(configPath());
     });
 
   command
-    .command("init")
-    .description("Create the default config file if it does not exist")
-    .option("-f, --force", "overwrite an existing config file")
-    .option("-d, --dry-run", "print the default config without writing it")
+    .command('init')
+    .description('Create the default config file if it does not exist')
+    .option('-f, --force', 'overwrite an existing config file')
+    .option('-d, --dry-run', 'print the default config without writing it')
     .action((options: { force?: boolean; dryRun?: boolean }) => {
       const path = resolveConfigPath();
 
@@ -106,15 +106,13 @@ export function createConfigCommand(): Command {
       }
 
       if (existsSync(path) && !options.force) {
-        console.error(
-          `Error: config file already exists: ${path}\n\nUse --force to overwrite.`
-        );
+        console.error(`Error: config file already exists: ${path}\n\nUse --force to overwrite.`);
         process.exit(1);
       }
 
       try {
         mkdirSync(dirname(path), { recursive: true });
-        writeFileSync(path, DEFAULT_CONFIG, "utf-8");
+        writeFileSync(path, DEFAULT_CONFIG, 'utf-8');
         console.log(`Created config file: ${path}`);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -124,30 +122,27 @@ export function createConfigCommand(): Command {
     });
 
   command
-    .command("edit")
-    .description("Open the config file in an editor")
+    .command('edit')
+    .description('Open the config file in an editor')
     .action(() => {
       const path = resolveConfigPath();
 
       try {
         loadConfig(path);
       } catch (err) {
-        const message =
-          err instanceof ConfigError ? err.message : String(err);
+        const message = err instanceof ConfigError ? err.message : String(err);
         console.error(`Error: ${message}`);
         process.exit(1);
       }
 
       const editor = getEditor() ?? findFallbackEditor();
       if (!editor) {
-        console.error(
-          "Error: no editor found. Set EDITOR or VISUAL environment variable."
-        );
+        console.error('Error: no editor found. Set EDITOR or VISUAL environment variable.');
         process.exit(1);
       }
 
       const result = spawnSync(editor, [path], {
-        stdio: "inherit",
+        stdio: 'inherit',
         shell: false,
       });
 

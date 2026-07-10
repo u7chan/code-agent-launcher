@@ -1,4 +1,4 @@
-import type { Config } from "../config.js";
+import type { Config } from '../config.js';
 
 export interface TmuxContext {
   config: Config;
@@ -12,14 +12,14 @@ export interface TmuxContext {
 export class TmuxAdapterError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "TmuxAdapterError";
+    this.name = 'TmuxAdapterError';
   }
 }
 
 export function executeTmuxStart(_ctx: TmuxContext): never {
-  throw new TmuxAdapterError("tmux adapter is not implemented");
+  throw new TmuxAdapterError('tmux adapter is not implemented');
 }
 
 export function executeTmuxRun(_ctx: TmuxContext): never {
-  throw new TmuxAdapterError("tmux adapter is not implemented");
+  throw new TmuxAdapterError('tmux adapter is not implemented');
 }

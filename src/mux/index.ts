@@ -1,13 +1,8 @@
-import { Command } from "commander";
-import {
-  configPath,
-  loadConfig,
-  type Config,
-  type MultiplexerAdapter,
-} from "../config.js";
-import { resolveModel } from "../model.js";
-import { executeHerdrRun, executeHerdrStart } from "./herdr.js";
-import { executeTmuxRun, executeTmuxStart } from "./tmux.js";
+import { Command } from 'commander';
+import { configPath, loadConfig, type Config, type MultiplexerAdapter } from '../config.js';
+import { resolveModel } from '../model.js';
+import { executeHerdrRun, executeHerdrStart } from './herdr.js';
+import { executeTmuxRun, executeTmuxStart } from './tmux.js';
 
 export interface MuxGlobalOptions {
   model?: string;
@@ -18,34 +13,23 @@ export interface MuxGlobalOptions {
 export class MuxAdapterError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "MuxAdapterError";
+    this.name = 'MuxAdapterError';
   }
 }
 
-export function validateMuxAdapter(
-  config: Config,
-  adapterName: string
-): MultiplexerAdapter {
+export function validateMuxAdapter(config: Config, adapterName: string): MultiplexerAdapter {
   const adapter = config.multiplexer[adapterName];
-  if (
-    !adapter ||
-    typeof adapter !== "object" ||
-    !(adapter as MultiplexerAdapter).enabled
-  ) {
+  if (!adapter || typeof adapter !== 'object' || !(adapter as MultiplexerAdapter).enabled) {
     throw new MuxAdapterError(
       `multiplexer adapter is not enabled: ${adapterName}\n\nCheck:\n  ${
         process.env.OCGO_CONFIG ?? configPath()
-      }`
+      }`,
     );
   }
   return adapter as MultiplexerAdapter;
 }
 
-async function dispatchMux(
-  mode: "start" | "run",
-  level: string,
-  command: Command
-): Promise<void> {
+async function dispatchMux(mode: 'start' | 'run', level: string, command: Command): Promise<void> {
   const muxOpts = command.optsWithGlobals() as MuxGlobalOptions;
   const config = loadConfig();
   const adapterName = muxOpts.adapter ?? config.multiplexer.default;
@@ -67,7 +51,7 @@ async function dispatchMux(
   const cwd = process.cwd();
   const dryRun = muxOpts.dryRun === true;
 
-  if (adapterName === "herdr") {
+  if (adapterName === 'herdr') {
     const ctx = {
       config,
       modelId: resolved.modelId,
@@ -76,7 +60,7 @@ async function dispatchMux(
       extraArgs,
       dryRun,
     };
-    if (mode === "start") {
+    if (mode === 'start') {
       executeHerdrStart(ctx);
     } else {
       executeHerdrRun(ctx);
@@ -84,7 +68,7 @@ async function dispatchMux(
     return;
   }
 
-  if (adapterName === "tmux") {
+  if (adapterName === 'tmux') {
     const ctx = {
       config,
       modelId: resolved.modelId,
@@ -93,7 +77,7 @@ async function dispatchMux(
       extraArgs,
       dryRun,
     };
-    if (mode === "start") {
+    if (mode === 'start') {
       executeTmuxStart(ctx);
     } else {
       executeTmuxRun(ctx);
@@ -105,24 +89,24 @@ async function dispatchMux(
 }
 
 export function createMuxCommand(): Command {
-  const mux = new Command("mux");
+  const mux = new Command('mux');
 
-  mux.description("Launch opencode via a multiplexer adapter");
+  mux.description('Launch opencode via a multiplexer adapter');
 
-  const start = new Command("start")
-    .description("Start an interactive opencode session in a new pane")
-    .argument("<level>", "task level (low, mid, high, etc.)")
+  const start = new Command('start')
+    .description('Start an interactive opencode session in a new pane')
+    .argument('<level>', 'task level (low, mid, high, etc.)')
     .allowUnknownOption()
     .action(async (level: string) => {
-      await dispatchMux("start", level, start);
+      await dispatchMux('start', level, start);
     });
 
-  const run = new Command("run")
-    .description("Run opencode non-interactively in a new pane")
-    .argument("<level>", "task level (low, mid, high, etc.)")
+  const run = new Command('run')
+    .description('Run opencode non-interactively in a new pane')
+    .argument('<level>', 'task level (low, mid, high, etc.)')
     .allowUnknownOption()
     .action(async (level: string) => {
-      await dispatchMux("run", level, run);
+      await dispatchMux('run', level, run);
     });
 
   mux.addCommand(start);
