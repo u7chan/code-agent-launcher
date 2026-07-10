@@ -6,8 +6,8 @@ import { findExecutable } from './command.js'
 import {
   type Config,
   ConfigError,
-  configPath,
   loadConfig,
+  resolveConfigPath,
   type MultiplexerAdapter,
 } from './config.js'
 import { collectAllFullModelIds, collectAllModels, normalizeModelId } from './model.js'
@@ -37,7 +37,7 @@ export interface DoctorOptions {
 
 export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
   const results: CheckResult[] = []
-  const configFile = process.env.OCGO_CONFIG ?? configPath()
+  const configFile = resolveConfigPath()
 
   // 1. config.yaml exists
   if (!existsSync(configFile)) {

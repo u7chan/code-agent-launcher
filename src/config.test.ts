@@ -9,16 +9,16 @@ describe('loadConfig', () => {
   let originalConfig: string | undefined
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'ocgo-config-test-'))
-    originalConfig = process.env.OCGO_CONFIG
+    tmpDir = mkdtempSync(join(tmpdir(), 'cagent-config-test-'))
+    originalConfig = process.env.CAGENT_CONFIG
   })
 
   afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true })
     if (originalConfig === undefined) {
-      delete process.env.OCGO_CONFIG
+      delete process.env.CAGENT_CONFIG
     } else {
-      process.env.OCGO_CONFIG = originalConfig
+      process.env.CAGENT_CONFIG = originalConfig
     }
   })
 
@@ -42,24 +42,25 @@ multiplexer:
     enabled: true
 `,
     )
-    process.env.OCGO_CONFIG = configFile
+    process.env.CAGENT_CONFIG = configFile
 
     const config = loadConfig()
-    expect(config.version).toBe(1)
+    expect(config.version).toBe(2)
+    expect(config.default_agent).toBe('opencode-go')
     expect(config.provider).toBe('opencode-go')
     expect(config.default_level).toBe('mid')
     expect(config.levels.mid.default_model).toBe('deepseek-v4-pro')
   })
 
   it('throws ConfigError for missing file', () => {
-    process.env.OCGO_CONFIG = join(tmpDir, 'missing.yaml')
+    process.env.CAGENT_CONFIG = join(tmpDir, 'missing.yaml')
     expect(() => loadConfig()).toThrow(ConfigError)
   })
 
   it('throws ConfigError for invalid YAML', () => {
     const configFile = join(tmpDir, 'config.yaml')
     writeFileSync(configFile, 'not: valid: yaml: [')
-    process.env.OCGO_CONFIG = configFile
+    process.env.CAGENT_CONFIG = configFile
     expect(() => loadConfig()).toThrow(ConfigError)
   })
 
@@ -83,7 +84,7 @@ multiplexer:
     enabled: true
 `,
     )
-    process.env.OCGO_CONFIG = configFile
+    process.env.CAGENT_CONFIG = configFile
     expect(() => loadConfig()).toThrow(ConfigError)
   })
 })
@@ -93,13 +94,43 @@ describe('configPath', () => {
     const originalXdg = process.env.XDG_CONFIG_HOME
     process.env.XDG_CONFIG_HOME = '/tmp/xdg-test'
     try {
-      expect(configPath()).toBe('/tmp/xdg-test/ocgo/config.yaml')
+      expect(configPath()).toBe('/tmp/xdg-test/cagent/config.yaml')
     } finally {
       if (originalXdg === undefined) {
         delete process.env.XDG_CONFIG_HOME
       } else {
         process.env.XDG_CONFIG_HOME = originalXdg
       }
+    }
+  })
+})
+
+describe('config v2', () => {
+  it('loads an agent-specific v2 config', () => {
+    const file = join(tmpdir(), `cagent-v2-${process.pid}.yaml`)
+    writeFileSync(
+      file,
+      `version: 2\ndefault_agent: opencode-go\ndefault_level: low\nagents:\n  opencode-go:\n    bin: custom-opencode\n    provider: opencode-go\n    levels:\n      low:\n        description: Simple\n        default_model: qwen\n        models: [qwen]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+    )
+    try {
+      expect(loadConfig(file).agents?.['opencode-go'].bin).toBe('custom-opencode')
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+  it('uses CAGENT_CONFIG', () => {
+    const primary = join(tmpdir(), `cagent-primary-${process.pid}.yaml`)
+    const yaml = (bin: string) =>
+      `version: 1\nopencode_bin: ${bin}\nprovider: opencode-go\ndefault_level: low\nlevels:\n  low:\n    description: Simple\n    default_model: qwen\n    models: [qwen]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`
+    writeFileSync(primary, yaml('primary'))
+    const oldPrimary = process.env.CAGENT_CONFIG
+    process.env.CAGENT_CONFIG = primary
+    try {
+      expect(loadConfig().opencode_bin).toBe('primary')
+    } finally {
+      if (oldPrimary === undefined) delete process.env.CAGENT_CONFIG
+      else process.env.CAGENT_CONFIG = oldPrimary
+      rmSync(primary, { force: true })
     }
   })
 })

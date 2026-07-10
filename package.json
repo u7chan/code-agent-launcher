@@ -1,11 +1,11 @@
 {
-  "name": "ocgo",
+  "name": "code-agent-launcher",
   "version": "0.1.0",
-  "description": "OpenCode Go wrapper CLI for model routing and multiplexer integration",
+  "description": "A lightweight profile launcher for coding-agent CLIs",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "ocgo": "dist/index.js"
+    "cagent": "dist/index.js"
   },
   "scripts": {
     "build": "tsc && chmod +x dist/index.js && find dist -name '*.test.js' -delete",
@@ -33,7 +33,8 @@
     "node": ">=18.0.0"
   },
   "keywords": [
-    "opencode",
+    "coding-agent",
+    "cagent",
     "cli",
     "wrapper"
   ],

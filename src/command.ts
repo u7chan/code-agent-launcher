@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { accessSync, constants } from 'node:fs'
 import { delimiter, isAbsolute, join } from 'node:path'
+import type { CommandSpec } from './agents/types.js'
 
 export interface CommandResult {
   command: string
@@ -86,6 +87,21 @@ export function formatCommandForDisplay(command: string, args: string[]): string
 export function runCommandFormat(opencodeBin: string, args: string[]): string {
   const { command, args: cmdArgs } = buildCommand(opencodeBin, args)
   return formatCommandForDisplay(command, cmdArgs)
+}
+
+export function formatCommandSpec(spec: CommandSpec): string {
+  const { command, args } = buildCommand(spec.command, spec.args)
+  return formatCommandForDisplay(command, args)
+}
+
+export function runCommandSpec(
+  spec: CommandSpec,
+  options: RunOptions = {},
+): Promise<CommandResult> {
+  return runCommand(spec.command, spec.args, {
+    ...options,
+    env: spec.env ? { ...process.env, ...spec.env, ...options.env } : options.env,
+  })
 }
 
 export function runCommand(

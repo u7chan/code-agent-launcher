@@ -1,16 +1,18 @@
 import { Command } from 'commander'
-import { runCommand, runCommandFormat } from './command.js'
-import { loadConfig } from './config.js'
+import { getAgentAdapter } from './agents/registry.js'
+import { formatCommandSpec, runCommandSpec } from './command.js'
+import { getAgent, loadConfig } from './config.js'
 import { resolveModel } from './model.js'
 
 export interface RunCommandOptions {
+  agent?: string
   level?: string
   model?: string
   dryRun?: boolean
 }
 
 /**
- * Parse `ocgo run` argv so that:
+ * Parse `cagent run` argv so that:
  * - optional level is taken only from tokens before `--`
  * - tokens after `--` are always prompt/extra args (never level)
  */
@@ -66,7 +68,8 @@ export function createRunCommand(): Command {
   const command = new Command('run')
 
   command
-    .description('Run opencode non-interactively with a prompt')
+    .description('Run a coding agent non-interactively with a prompt')
+    .option('-a, --agent <agent>', 'coding agent id')
     .allowUnknownOption()
     .action(async () => {
       const globals = command.optsWithGlobals() as RunCommandOptions
@@ -74,12 +77,17 @@ export function createRunCommand(): Command {
 
       const cliLevel = globals.level ?? positionalLevel
       const cliModel = globals.model
-      const envModel = process.env.OCGO_MODEL
-      const envLevel = process.env.OCGO_LEVEL
+      const envModel = process.env.CAGENT_MODEL
+      const envLevel = process.env.CAGENT_LEVEL
       const dryRun = globals.dryRun === true
 
       const config = loadConfig()
+      const effectiveAgentId =
+        globals.agent ?? process.env.CAGENT_AGENT ?? config.default_agent ?? 'opencode-go'
+      const agent = getAgent(config, effectiveAgentId)
+      const adapter = getAgentAdapter(effectiveAgentId)
       const resolved = resolveModel(config, {
+        agent: effectiveAgentId,
         cliModel,
         cliLevel,
         envModel,
@@ -90,19 +98,26 @@ export function createRunCommand(): Command {
         console.warn(`Warning: ${warning}`)
       }
 
-      const args = ['run', '--model', resolved.modelId, ...extraArgs]
+      const spec = adapter.buildRunCommand({
+        bin: agent.bin,
+        modelId: resolved.modelId,
+        level: resolved.levelName ?? config.default_level,
+        cwd: process.cwd(),
+        extraArgs,
+        config: agent,
+      })
 
       if (dryRun) {
         const displayLevel =
-          resolved.levelName && config.levels[resolved.levelName]
+          resolved.levelName && agent.levels[resolved.levelName]
             ? resolved.levelName
             : config.default_level
         console.log(`# Resolved level: ${displayLevel}`)
-        console.log(runCommandFormat(config.opencode_bin, args))
+        console.log(formatCommandSpec(spec))
         return
       }
 
-      const result = await runCommand(config.opencode_bin, args, {
+      const result = await runCommandSpec(spec, {
         stdio: 'inherit',
       })
 

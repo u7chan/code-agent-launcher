@@ -1,9 +1,7 @@
-import type { Config } from '../config.js'
+import type { CommandSpec } from '../agents/types.js'
 
 export interface TmuxContext {
-  config: Config
-  modelId: string
-  level: string
+  command: CommandSpec
   cwd: string
   extraArgs: string[]
   dryRun: boolean

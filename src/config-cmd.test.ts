@@ -13,21 +13,21 @@ describe('createConfigCommand', () => {
   let originalVisual: string | undefined
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'ocgo-config-cmd-test-'))
-    originalConfig = process.env.OCGO_CONFIG
+    tmpDir = mkdtempSync(join(tmpdir(), 'cagent-config-cmd-test-'))
+    originalConfig = process.env.CAGENT_CONFIG
     originalXdg = process.env.XDG_CONFIG_HOME
     originalEditor = process.env.EDITOR
     originalVisual = process.env.VISUAL
     process.env.XDG_CONFIG_HOME = join(tmpDir, 'xdg-config')
-    delete process.env.OCGO_CONFIG
+    delete process.env.CAGENT_CONFIG
   })
 
   afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true })
     if (originalConfig === undefined) {
-      delete process.env.OCGO_CONFIG
+      delete process.env.CAGENT_CONFIG
     } else {
-      process.env.OCGO_CONFIG = originalConfig
+      process.env.CAGENT_CONFIG = originalConfig
     }
     if (originalXdg === undefined) {
       delete process.env.XDG_CONFIG_HOME
@@ -51,7 +51,7 @@ describe('createConfigCommand', () => {
       const command = createConfigCommand()
       const logSpy = spyOn(console, 'log').mockImplementation(() => {})
       try {
-        await command.parseAsync(['node', 'ocgo', 'path'])
+        await command.parseAsync(['node', 'cagent', 'path'])
         expect(logSpy).toHaveBeenCalledWith(configPath())
       } finally {
         logSpy.mockRestore()
@@ -64,7 +64,7 @@ describe('createConfigCommand', () => {
       const command = createConfigCommand()
       const logSpy = spyOn(console, 'log').mockImplementation(() => {})
       try {
-        await command.parseAsync(['node', 'ocgo', 'init'])
+        await command.parseAsync(['node', 'cagent', 'init'])
         const path = configPath()
         expect(existsSync(path)).toBe(true)
         expect(readFileSync(path, 'utf-8')).toBe(DEFAULT_CONFIG)
@@ -84,7 +84,7 @@ describe('createConfigCommand', () => {
         throw new Error('process.exit')
       })
       try {
-        await expect(command.parseAsync(['node', 'ocgo', 'init'])).rejects.toThrow('process.exit')
+        await expect(command.parseAsync(['node', 'cagent', 'init'])).rejects.toThrow('process.exit')
         expect(errorSpy).toHaveBeenCalled()
         const call = errorSpy.mock.calls[0]
         expect(call).toBeArray()
@@ -102,7 +102,7 @@ describe('createConfigCommand', () => {
       const command = createConfigCommand()
       const logSpy = spyOn(console, 'log').mockImplementation(() => {})
       try {
-        await command.parseAsync(['node', 'ocgo', 'init', '--force'])
+        await command.parseAsync(['node', 'cagent', 'init', '--force'])
         expect(readFileSync(path, 'utf-8')).toBe(DEFAULT_CONFIG)
         expect(logSpy).toHaveBeenCalledWith(`Created config file: ${path}`)
       } finally {
@@ -114,7 +114,7 @@ describe('createConfigCommand', () => {
       const command = createConfigCommand()
       const logSpy = spyOn(console, 'log').mockImplementation(() => {})
       try {
-        await command.parseAsync(['node', 'ocgo', 'init', '--dry-run'])
+        await command.parseAsync(['node', 'cagent', 'init', '--dry-run'])
         expect(logSpy).toHaveBeenCalledWith(DEFAULT_CONFIG)
         expect(existsSync(configPath())).toBe(false)
       } finally {
@@ -122,13 +122,13 @@ describe('createConfigCommand', () => {
       }
     })
 
-    it('respects OCGO_CONFIG for init path', async () => {
+    it('respects CAGENT_CONFIG for init path', async () => {
       const customPath = join(tmpDir, 'custom-init.yaml')
       const command = createConfigCommand()
       const logSpy = spyOn(console, 'log').mockImplementation(() => {})
-      process.env.OCGO_CONFIG = customPath
+      process.env.CAGENT_CONFIG = customPath
       try {
-        await command.parseAsync(['node', 'ocgo', 'init'])
+        await command.parseAsync(['node', 'cagent', 'init'])
         expect(existsSync(customPath)).toBe(true)
         expect(readFileSync(customPath, 'utf-8')).toBe(DEFAULT_CONFIG)
         expect(logSpy).toHaveBeenCalledWith(`Created config file: ${customPath}`)
@@ -137,18 +137,18 @@ describe('createConfigCommand', () => {
       }
     })
 
-    it('errors via OCGO_CONFIG when config file already exists', async () => {
+    it('errors via CAGENT_CONFIG when config file already exists', async () => {
       const customPath = join(tmpDir, 'existing-init.yaml')
       mkdirSync(dirname(customPath), { recursive: true })
       writeFileSync(customPath, 'existing: config\n', 'utf-8')
-      process.env.OCGO_CONFIG = customPath
+      process.env.CAGENT_CONFIG = customPath
       const command = createConfigCommand()
       const errorSpy = spyOn(console, 'error').mockImplementation(() => {})
       const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
         throw new Error('process.exit')
       })
       try {
-        await expect(command.parseAsync(['node', 'ocgo', 'init'])).rejects.toThrow('process.exit')
+        await expect(command.parseAsync(['node', 'cagent', 'init'])).rejects.toThrow('process.exit')
         expect(errorSpy).toHaveBeenCalled()
         const call = errorSpy.mock.calls[0]
         expect(call).toBeArray()
@@ -168,7 +168,7 @@ describe('createConfigCommand', () => {
         throw new Error('process.exit')
       })
       try {
-        await expect(command.parseAsync(['node', 'ocgo', 'edit'])).rejects.toThrow('process.exit')
+        await expect(command.parseAsync(['node', 'cagent', 'edit'])).rejects.toThrow('process.exit')
         expect(errorSpy).toHaveBeenCalled()
       } finally {
         errorSpy.mockRestore()
@@ -191,20 +191,20 @@ describe('createConfigCommand', () => {
         throw new Error('process.exit')
       })
       try {
-        await expect(command.parseAsync(['node', 'ocgo', 'edit'])).rejects.toThrow('process.exit')
+        await expect(command.parseAsync(['node', 'cagent', 'edit'])).rejects.toThrow('process.exit')
       } finally {
         exitSpy.mockRestore()
       }
     })
 
-    it('respects OCGO_CONFIG for edit path', async () => {
+    it('respects CAGENT_CONFIG for edit path', async () => {
       const customPath = join(tmpDir, 'custom-edit.yaml')
       writeFileSync(
         customPath,
         `version: 1\nopencode_bin: opencode\nprovider: opencode-go\ndefault_level: mid\nlevels:\n  mid:\n    description: Normal\n    default_model: deepseek-v4-pro\n    models:\n      - deepseek-v4-pro\nmultiplexer:\n  default: herdr\n  herdr:\n    enabled: true\n`,
         'utf-8',
       )
-      process.env.OCGO_CONFIG = customPath
+      process.env.CAGENT_CONFIG = customPath
       process.env.EDITOR = 'false'
       delete process.env.VISUAL
       const command = createConfigCommand()
@@ -212,7 +212,7 @@ describe('createConfigCommand', () => {
         throw new Error('process.exit')
       })
       try {
-        await expect(command.parseAsync(['node', 'ocgo', 'edit'])).rejects.toThrow('process.exit')
+        await expect(command.parseAsync(['node', 'cagent', 'edit'])).rejects.toThrow('process.exit')
       } finally {
         exitSpy.mockRestore()
       }

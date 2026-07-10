@@ -1,10 +1,15 @@
-import type { Config, LevelConfig } from './config.js'
+import { type Config, getAgent, type LevelConfig } from './config.js'
 
 export interface ResolveOptions {
+  agent?: string
   cliModel?: string
   cliLevel?: string
   envModel?: string
   envLevel?: string
+}
+
+function agentConfig(config: Config, agent?: string) {
+  return getAgent(config, agent ?? config.default_agent ?? 'opencode-go')
 }
 
 export class ModelError extends Error {
@@ -33,9 +38,9 @@ export function stripProvider(modelId: string, provider: string): string {
   return modelId
 }
 
-export function collectAllModels(config: Config): string[] {
+export function collectAllModels(config: Config, agent?: string): string[] {
   const seen = new Set<string>()
-  for (const level of Object.values(config.levels)) {
+  for (const level of Object.values(agentConfig(config, agent).levels)) {
     for (const model of level.models) {
       seen.add(model)
     }
@@ -43,23 +48,26 @@ export function collectAllModels(config: Config): string[] {
   return Array.from(seen)
 }
 
-export function collectAllFullModelIds(config: Config): string[] {
+export function collectAllFullModelIds(config: Config, agent?: string): string[] {
   const seen = new Set<string>()
-  for (const level of Object.values(config.levels)) {
+  const selected = agentConfig(config, agent)
+  for (const level of Object.values(selected.levels)) {
     for (const model of level.models) {
-      seen.add(normalizeModelId(model, config.provider))
+      seen.add(normalizeModelId(model, selected.provider ?? 'opencode-go'))
     }
   }
   return Array.from(seen)
 }
 
-export function isKnownModel(modelId: string, config: Config): boolean {
-  const normalized = normalizeModelId(modelId, config.provider)
-  const short = stripProvider(normalized, config.provider)
+export function isKnownModel(modelId: string, config: Config, agent?: string): boolean {
+  const selected = agentConfig(config, agent)
+  const provider = selected.provider ?? 'opencode-go'
+  const normalized = normalizeModelId(modelId, provider)
+  const short = stripProvider(normalized, provider)
 
-  for (const level of Object.values(config.levels)) {
+  for (const level of Object.values(selected.levels)) {
     for (const model of level.models) {
-      if (model === short || normalizeModelId(model, config.provider) === normalized) {
+      if (model === short || normalizeModelId(model, provider) === normalized) {
         return true
       }
     }
@@ -75,8 +83,9 @@ export function isProviderModel(modelId: string, provider: string): boolean {
 export function validateKnownModel(
   modelId: string,
   config: Config,
+  agent?: string,
 ): { known: boolean; warning?: string } {
-  if (isKnownModel(modelId, config)) {
+  if (isKnownModel(modelId, config, agent)) {
     return { known: true }
   }
 
@@ -90,12 +99,16 @@ export function validateKnownModel(
   return { known: false }
 }
 
-export function listLevels(config: Config): string[] {
-  return Object.keys(config.levels)
+export function listLevels(config: Config, agent?: string): string[] {
+  return Object.keys(agentConfig(config, agent).levels)
 }
 
-export function findSimilarLevel(input: string, config: Config): string | undefined {
-  const levels = listLevels(config)
+export function findSimilarLevel(
+  input: string,
+  config: Config,
+  agent?: string,
+): string | undefined {
+  const levels = listLevels(config, agent)
   let best: string | undefined
   let bestDistance = Infinity
 
@@ -110,13 +123,13 @@ export function findSimilarLevel(input: string, config: Config): string | undefi
   return best
 }
 
-export function getLevel(config: Config, levelName: string): LevelConfig {
-  const level = config.levels[levelName]
+export function getLevel(config: Config, levelName: string, agent?: string): LevelConfig {
+  const level = agentConfig(config, agent).levels[levelName]
   if (!level) {
-    const available = listLevels(config)
+    const available = listLevels(config, agent)
       .map((l) => `  ${l}`)
       .join('\n')
-    const suggestion = findSimilarLevel(levelName, config)
+    const suggestion = findSimilarLevel(levelName, config, agent)
     let message = `unknown level: ${levelName}\n\nAvailable levels:\n${available}`
     if (suggestion) {
       message += `\n\nDid you mean:\n  ${suggestion}`
@@ -126,8 +139,12 @@ export function getLevel(config: Config, levelName: string): LevelConfig {
   return level
 }
 
-export function findSimilarModel(input: string, config: Config): string | undefined {
-  const models = collectAllModels(config)
+export function findSimilarModel(
+  input: string,
+  config: Config,
+  agent?: string,
+): string | undefined {
+  const models = collectAllModels(config, agent)
   let best: string | undefined
   let bestDistance = Infinity
 
@@ -171,6 +188,8 @@ export function resolveModel(
   options: ResolveOptions,
 ): { modelId: string; levelName?: string; warnings: string[] } {
   const warnings: string[] = []
+  const selected = agentConfig(config, options.agent)
+  const provider = selected.provider ?? 'opencode-go'
 
   const hasExplicitModel = Boolean(options.cliModel || options.envModel)
   const effectiveLevel = options.cliLevel ?? options.envLevel
@@ -180,14 +199,14 @@ export function resolveModel(
 
   if (hasExplicitModel) {
     rawModel = options.cliModel ?? options.envModel
-    // Explicit model must not fail on an unrelated invalid OCGO_LEVEL.
+    // An explicit model must not fail on an unrelated environment level.
     // CLI-specified level is still validated.
     if (options.cliLevel !== undefined) {
-      getLevel(config, options.cliLevel)
+      getLevel(config, options.cliLevel, options.agent)
     }
   } else {
     levelName = effectiveLevel ?? config.default_level
-    const level = getLevel(config, levelName)
+    const level = getLevel(config, levelName, options.agent)
     rawModel = level.default_model
   }
 
@@ -195,14 +214,14 @@ export function resolveModel(
     throw new ModelError(`could not resolve model for level "${levelName ?? config.default_level}"`)
   }
 
-  const modelId = normalizeModelId(rawModel, config.provider)
+  const modelId = normalizeModelId(rawModel, provider)
 
-  const validation = validateKnownModel(rawModel, config)
+  const validation = validateKnownModel(rawModel, config, options.agent)
   if (!validation.known) {
     if (validation.warning) {
       warnings.push(validation.warning)
     } else {
-      const suggestion = findSimilarModel(rawModel, config)
+      const suggestion = findSimilarModel(rawModel, config, options.agent)
       let message = `unknown model in config: ${rawModel}`
       if (suggestion) {
         message += `\n\nDid you mean:\n  ${suggestion}`
