@@ -1,17 +1,39 @@
-# Agent 向けガイドライン
+# 開発ガイド
 
-このリポジトリは汎用コーディングエージェントランチャー `code-agent-launcher` です。CLI コマンドは `cagent` です。
+## 概要
 
-## サブエージェントとしてコーディングエージェントを使う場合
+このリポジトリは、コーディングエージェント用ランチャー `code-agent-launcher` です。CLI コマンドは `cagent` です。
 
-- 設定済みのエージェントIDを `--agent <agent>` で明示し、原則 `cagent` を経由して呼び出してください。
-- 1 回きりの非対話実行では `cagent run --agent <agent> <level> -- "<prompt>"` を基本形として使ってください。
-- Herdr 上に永続的なセッションを立てる場合は `cagent mux start --agent <agent> <level>` を使ってください。
-- Herdr 上で 1 回きり実行する場合は `cagent mux run --agent <agent> <level> -- "<prompt>"` を使ってください。
-- タスクレベルは `low` / `mid` / `high` のいずれかを選び、作業の重さに応じて判断してください。
-- `tmux` は前提とせず、multiplexer は Herdr を想定してください。
-- 対話型エージェントを Codex / Claude Code / 他の CLI エージェントの子プロセスとして直接起動しないでください。
+## TechStack
 
-## 関連ファイル
+- TypeScript / Node.js 18+
+- Bun（テスト・開発実行）
+- Commander（CLI）
+- YAML（設定ファイルの読み込み）
+- Biome（Lint・フォーマット）
 
-- `skills/coding-agent-subagent/SKILL.md`: コーディングエージェントのサブエージェント呼び出しの詳細ルール
+## Commands
+
+依存関係をインストールした後、以下のコマンドを使用します。
+
+```bash
+bun install
+bun run dev          # ソースから開発実行
+bun run build        # dist/ へビルド
+bun test src/        # テスト
+bun run lint         # Lint・型チェック
+bun run format:check # フォーマット確認
+bun run check        # Biomeチェック・型チェック
+```
+
+## Related files
+
+- `src/index.ts`: CLIエントリーポイント
+- `src/command.ts`: CLIコマンドの定義
+- `src/run.ts`: 非対話実行
+- `src/mux/`: Herdrなどのマルチプレクサ連携
+- `src/agents/`: エージェントごとの実行処理
+- `src/config.ts`: 設定ファイルと環境変数の処理
+- `src/doctor.ts`: 設定・環境の検証
+- `skills/coding-agent-subagent/SKILL.md`: サブエージェント呼び出しの詳細ルール
+- `.github/workflows/ci.yml`: CI設定
