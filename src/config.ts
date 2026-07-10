@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import YAML from 'yaml'
@@ -8,7 +8,11 @@ export interface LevelConfig {
   default_model: string
   models: string[]
 }
-
+export interface AgentConfig {
+  bin: string
+  provider?: string
+  levels: Record<string, LevelConfig>
+}
 export interface MultiplexerAdapter {
   enabled: boolean
   start_command_template?: string
@@ -16,152 +20,156 @@ export interface MultiplexerAdapter {
   note?: string
   [key: string]: unknown
 }
-
 export interface MultiplexerConfig {
   default: string
   [adapter: string]: string | MultiplexerAdapter | undefined
 }
 
+/** Normalized v2 configuration. Legacy fields are retained for API compatibility. */
 export interface Config {
   version: number
+  default_agent?: string
+  default_level: string
+  agents?: Record<string, AgentConfig>
+  multiplexer: MultiplexerConfig
   opencode_bin: string
   provider: string
-  default_level: string
   levels: Record<string, LevelConfig>
-  multiplexer: MultiplexerConfig
 }
 
 function getConfigHome(): string {
-  const xdgConfigHome = process.env.XDG_CONFIG_HOME
-  if (xdgConfigHome && xdgConfigHome.length > 0) {
-    return xdgConfigHome
-  }
-  return join(homedir(), '.config')
+  return process.env.XDG_CONFIG_HOME || join(homedir(), '.config')
 }
-
 export function configPath(): string {
+  return join(getConfigHome(), 'cagent', 'config.yaml')
+}
+export function legacyConfigPath(): string {
   return join(getConfigHome(), 'ocgo', 'config.yaml')
 }
-
+export function resolveConfigPath(): string {
+  if (process.env.CAGENT_CONFIG) return process.env.CAGENT_CONFIG
+  if (process.env.OCGO_CONFIG) return process.env.OCGO_CONFIG
+  return existsSync(configPath()) ? configPath() : legacyConfigPath()
+}
 export class ConfigError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'ConfigError'
   }
 }
-
-function assertRecord(value: unknown, message: string): Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new ConfigError(message)
-  }
-  return value as Record<string, unknown>
+function record(v: unknown, m: string): Record<string, unknown> {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw new ConfigError(m)
+  return v as Record<string, unknown>
 }
-
-function assertString(value: unknown, message: string): string {
-  if (typeof value !== 'string') {
-    throw new ConfigError(message)
-  }
-  return value
+function string(v: unknown, m: string): string {
+  if (typeof v !== 'string' || !v) throw new ConfigError(m)
+  return v
 }
-
-function assertNumber(value: unknown, message: string): number {
-  if (typeof value !== 'number') {
-    throw new ConfigError(message)
-  }
-  return value
-}
-
-function assertStringArray(value: unknown, message: string): string[] {
-  if (!Array.isArray(value)) {
-    throw new ConfigError(message)
-  }
-  for (const item of value) {
-    if (typeof item !== 'string') {
-      throw new ConfigError(message)
+function levels(raw: unknown): Record<string, LevelConfig> {
+  const out: Record<string, LevelConfig> = {}
+  for (const [name, value] of Object.entries(record(raw, 'levels must be an object'))) {
+    const level = record(value, `level "${name}" must be an object`)
+    if (!Array.isArray(level.models) || !level.models.every((x) => typeof x === 'string'))
+      throw new ConfigError(`level "${name}".models must be an array of strings`)
+    out[name] = {
+      description: string(level.description, `level "${name}".description must be a string`),
+      default_model: string(level.default_model, `level "${name}".default_model must be a string`),
+      models: level.models as string[],
     }
   }
-  return value as string[]
+  return out
 }
-
-function parseLevels(raw: unknown): Record<string, LevelConfig> {
-  const levelsRecord = assertRecord(raw, 'levels must be an object')
-  const levels: Record<string, LevelConfig> = {}
-
-  for (const [name, levelRaw] of Object.entries(levelsRecord)) {
-    const level = assertRecord(levelRaw, `level "${name}" must be an object`)
-    levels[name] = {
-      description: assertString(level.description, `level "${name}".description must be a string`),
-      default_model: assertString(
-        level.default_model,
-        `level "${name}".default_model must be a string`,
-      ),
-      models: assertStringArray(level.models, `level "${name}".models must be an array of strings`),
+function mux(raw: unknown): MultiplexerConfig {
+  const input = record(raw, 'multiplexer must be an object')
+  const out: MultiplexerConfig = {
+    default: string(input.default, 'multiplexer.default must be a string'),
+  }
+  for (const [name, value] of Object.entries(input))
+    if (name !== 'default' && value != null) {
+      const x = record(value, `multiplexer adapter "${name}" must be an object`)
+      out[name] = {
+        enabled: x.enabled === true,
+        start_command_template:
+          typeof x.start_command_template === 'string' ? x.start_command_template : undefined,
+        run_command_template:
+          typeof x.run_command_template === 'string' ? x.run_command_template : undefined,
+        note: typeof x.note === 'string' ? x.note : undefined,
+      }
+    }
+  return out
+}
+function normalize(root: Record<string, unknown>): Config {
+  const version = typeof root.version === 'number' ? root.version : 1
+  const multiplexer = mux(root.multiplexer)
+  let agents: Record<string, AgentConfig>
+  let defaultAgent: string
+  if (version >= 2) {
+    agents = {}
+    for (const [id, raw] of Object.entries(record(root.agents, 'agents must be an object'))) {
+      const agent = record(raw, `agent "${id}" must be an object`)
+      agents[id] = {
+        bin: string(agent.bin, `agent "${id}".bin must be a string`),
+        provider: typeof agent.provider === 'string' ? agent.provider : undefined,
+        levels: levels(agent.levels),
+      }
+    }
+    defaultAgent = string(root.default_agent, 'default_agent must be a string')
+  } else {
+    defaultAgent = 'opencode-go'
+    agents = {
+      'opencode-go': {
+        bin: string(root.opencode_bin, 'opencode_bin must be a string'),
+        provider: string(root.provider, 'provider must be a string'),
+        levels: levels(root.levels),
+      },
     }
   }
-
-  return levels
-}
-
-function parseMultiplexer(raw: unknown): MultiplexerConfig {
-  const mux = assertRecord(raw, 'multiplexer must be an object')
-  const parsed: MultiplexerConfig = {
-    default: assertString(mux.default, 'multiplexer.default must be a string'),
+  const active = agents[defaultAgent]
+  if (!active) throw new ConfigError(`default_agent "${defaultAgent}" is not defined in agents`)
+  const defaultLevel = string(root.default_level, 'default_level must be a string')
+  if (!active.levels[defaultLevel])
+    throw new ConfigError(
+      `default_level "${defaultLevel}" is not defined in levels for agent "${defaultAgent}"`,
+    )
+  return {
+    version: 2,
+    default_agent: defaultAgent,
+    default_level: defaultLevel,
+    agents,
+    multiplexer,
+    opencode_bin: active.bin,
+    provider: active.provider ?? 'opencode-go',
+    levels: active.levels,
   }
-
-  for (const [key, value] of Object.entries(mux)) {
-    if (key === 'default') continue
-    if (value === undefined || value === null) continue
-
-    const adapter = assertRecord(value, `multiplexer adapter "${key}" must be an object`)
-    parsed[key] = {
-      enabled: adapter.enabled === true,
-      start_command_template:
-        typeof adapter.start_command_template === 'string'
-          ? adapter.start_command_template
-          : undefined,
-      run_command_template:
-        typeof adapter.run_command_template === 'string' ? adapter.run_command_template : undefined,
-      note: typeof adapter.note === 'string' ? adapter.note : undefined,
-    } as MultiplexerAdapter
-  }
-
-  return parsed
 }
-
 export function loadConfig(path?: string): Config {
-  const configFile = path ?? process.env.OCGO_CONFIG ?? configPath()
-
+  const file = path ?? resolveConfigPath()
   let content: string
   try {
-    content = readFileSync(configFile, 'utf-8')
+    content = readFileSync(file, 'utf-8')
   } catch (err) {
-    const cause = err instanceof Error ? err.message : String(err)
-    throw new ConfigError(`config file not found: ${configFile}\n\n${cause}`)
+    throw new ConfigError(
+      `config file not found: ${file}\n\n${err instanceof Error ? err.message : String(err)}`,
+    )
   }
-
-  let parsed: unknown
   try {
-    parsed = YAML.parse(content)
+    return normalize(record(YAML.parse(content), 'config must be a YAML object'))
   } catch (err) {
-    const cause = err instanceof Error ? err.message : String(err)
-    throw new ConfigError(`failed to parse config YAML: ${cause}`)
+    if (err instanceof ConfigError) throw err
+    throw new ConfigError(
+      `failed to parse config YAML: ${err instanceof Error ? err.message : String(err)}`,
+    )
   }
-
-  const root = assertRecord(parsed, 'config must be a YAML object')
-
-  const levels = parseLevels(root.levels)
-  const defaultLevel = assertString(root.default_level, 'default_level must be a string')
-
-  if (!levels[defaultLevel]) {
-    throw new ConfigError(`default_level "${defaultLevel}" is not defined in levels`)
+}
+export function getAgent(config: Config, id: string): AgentConfig {
+  const agents = config.agents ?? {
+    'opencode-go': { bin: config.opencode_bin, provider: config.provider, levels: config.levels },
   }
-
-  return {
-    version: assertNumber(root.version, 'version must be a number'),
-    opencode_bin: assertString(root.opencode_bin, 'opencode_bin must be a string'),
-    provider: assertString(root.provider, 'provider must be a string'),
-    default_level: defaultLevel,
-    levels,
-    multiplexer: parseMultiplexer(root.multiplexer),
-  }
+  const agent = agents[id]
+  if (agent) return agent
+  throw new ConfigError(
+    `unknown agent: ${id}\n\nAvailable agents:\n${Object.keys(agents)
+      .map((name) => `  ${name}`)
+      .join('\n')}`,
+  )
 }

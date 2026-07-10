@@ -5,52 +5,38 @@ import { Command } from 'commander'
 import { ConfigError, configPath, loadConfig } from './config.js'
 
 function resolveConfigPath(): string {
-  return process.env.OCGO_CONFIG ?? configPath()
+  return process.env.CAGENT_CONFIG ?? process.env.OCGO_CONFIG ?? configPath()
 }
 
-export const DEFAULT_CONFIG = `version: 1
+export const DEFAULT_CONFIG = `version: 2
 
-opencode_bin: opencode
-provider: opencode-go
-
+default_agent: opencode-go
 default_level: mid
-
-levels:
-  low:
-    description: Cheap and repetitive tasks
-    default_model: deepseek-v4-flash
-    models:
-      - deepseek-v4-flash
-      - mimo-v2.5
-
-  mid:
-    description: Normal implementation and maintenance
-    default_model: deepseek-v4-pro
-    models:
-      - deepseek-v4-pro
-      - qwen3.7-plus
-      - qwen3.6-plus
-      - mimo-v2.5-pro
-      - minimax-m3
-      - minimax-m2.7
-
-  high:
-    description: Complex design, investigation, and high-risk changes
-    default_model: kimi-k2.7-code
-    models:
-      - kimi-k2.7-code
-      - glm-5.2
-      - glm-5.1
-      - qwen3.7-max
-      - kimi-k2.6
+agents:
+  opencode-go:
+    bin: opencode
+    provider: opencode-go
+    levels:
+      low:
+        description: Cheap and repetitive tasks
+        default_model: deepseek-v4-flash
+        models: [deepseek-v4-flash, mimo-v2.5]
+      mid:
+        description: Normal implementation and maintenance
+        default_model: deepseek-v4-pro
+        models: [deepseek-v4-pro, qwen3.7-plus, qwen3.6-plus]
+      high:
+        description: Complex design, investigation, and high-risk changes
+        default_model: kimi-k2.7-code
+        models: [kimi-k2.7-code, glm-5.2, qwen3.7-max]
 
 multiplexer:
   default: herdr
 
   herdr:
     enabled: true
-    start_command_template: "ocgo {level}"
-    run_command_template: "ocgo run {level} -- {prompt}"
+    start_command_template: "cagent {level}"
+    run_command_template: "cagent run {level} -- {prompt}"
 
   tmux:
     enabled: false
@@ -82,7 +68,7 @@ function findFallbackEditor(): string | undefined {
 export function createConfigCommand(): Command {
   const command = new Command('config')
 
-  command.description('Manage ocgo configuration')
+  command.description('Manage cagent configuration')
 
   command
     .command('path')

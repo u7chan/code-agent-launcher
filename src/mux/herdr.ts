@@ -1,11 +1,9 @@
 import { spawnSync } from 'node:child_process'
-import { runCommandFormat } from '../command.js'
-import type { Config } from '../config.js'
+import { formatCommandSpec } from '../command.js'
+import type { CommandSpec } from '../agents/types.js'
 
 export interface HerdrContext {
-  config: Config
-  modelId: string
-  level: string
+  command: CommandSpec
   cwd: string
   extraArgs: string[]
   dryRun: boolean
@@ -92,17 +90,6 @@ function splitPane(currentPane: string, cwd: string): string {
   return parsePaneId(result.stdout)
 }
 
-function buildOpenCodeCommand(
-  config: Config,
-  modelId: string,
-  extraArgs: string[],
-  mode: 'start' | 'run',
-): string {
-  const args =
-    mode === 'run' ? ['run', '--model', modelId, ...extraArgs] : ['--model', modelId, ...extraArgs]
-  return runCommandFormat(config.opencode_bin, args)
-}
-
 function quoteForHerdr(command: string): string {
   return `'${command.replace(/'/g, `'\\''`)}'`
 }
@@ -123,8 +110,8 @@ function runInPane(pane: string, command: string): void {
   }
 }
 
-function executeHerdrMux(ctx: HerdrContext, mode: 'start' | 'run'): void {
-  const opencodeCommand = buildOpenCodeCommand(ctx.config, ctx.modelId, ctx.extraArgs, mode)
+function executeHerdrMux(ctx: HerdrContext): void {
+  const opencodeCommand = formatCommandSpec(ctx.command)
 
   if (ctx.dryRun) {
     printDryRunSequence(ctx.cwd, opencodeCommand)
@@ -138,9 +125,9 @@ function executeHerdrMux(ctx: HerdrContext, mode: 'start' | 'run'): void {
 }
 
 export function executeHerdrStart(ctx: HerdrContext): void {
-  executeHerdrMux(ctx, 'start')
+  executeHerdrMux(ctx)
 }
 
 export function executeHerdrRun(ctx: HerdrContext): void {
-  executeHerdrMux(ctx, 'run')
+  executeHerdrMux(ctx)
 }
