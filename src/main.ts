@@ -25,9 +25,7 @@ export function createMainCommand(): Command {
     .option('-a, --agent <agent>', 'coding agent id')
     .option('-d, --dry-run', 'print the opencode command without executing')
     .addOption(
-      new Option('-a, --adapter <adapter>', 'multiplexer adapter to use')
-        .default(undefined)
-        .hideHelp(),
+      new Option('--adapter <adapter>', 'multiplexer adapter to use').default(undefined).hideHelp(),
     )
     .allowUnknownOption()
     .action(async (positionalLevel: string | undefined, options: MainOptions) => {
