@@ -1,20 +1,20 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
+import type { Config } from './config.js';
 import {
-  normalizeModelId,
-  isKnownModel,
-  resolveModel,
-  findSimilarModel,
+  collectAllFullModelIds,
+  collectAllModels,
   findSimilarLevel,
+  findSimilarModel,
+  getLevel,
+  isKnownModel,
+  isProviderModel,
   listLevels,
   ModelError,
+  normalizeModelId,
+  resolveModel,
   stripProvider,
-  collectAllModels,
-  collectAllFullModelIds,
-  isProviderModel,
   validateKnownModel,
-  getLevel,
 } from './model.js';
-import type { Config } from './config.js';
 
 function makeConfig(): Config {
   return {

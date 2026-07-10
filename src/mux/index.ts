@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { configPath, loadConfig, type Config, type MultiplexerAdapter } from '../config.js';
+import { type Config, configPath, loadConfig, type MultiplexerAdapter } from '../config.js';
 import { resolveModel } from '../model.js';
 import { executeHerdrRun, executeHerdrStart } from './herdr.js';
 import { executeTmuxRun, executeTmuxStart } from './tmux.js';

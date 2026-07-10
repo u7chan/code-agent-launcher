@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'bun:test';
-import { mkdirSync, writeFileSync, chmodSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { describe, expect, it } from 'bun:test';
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   buildCommand,
   findExecutable,

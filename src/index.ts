@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import { createMainCommand } from './main.js';
-import { createRunCommand } from './run.js';
-import { createModelsCommand } from './models.js';
-import { createDoctorCommand } from './doctor.js';
 import { createConfigCommand } from './config-cmd.js';
+import { createDoctorCommand } from './doctor.js';
+import { createMainCommand } from './main.js';
+import { createModelsCommand } from './models.js';
 import { createMuxCommand } from './mux/index.js';
+import { createRunCommand } from './run.js';
 
 async function main(): Promise<void> {
   const program = createMainCommand();

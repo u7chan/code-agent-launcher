@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach, spyOn } from 'bun:test';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { createConfigCommand, DEFAULT_CONFIG } from './config-cmd.js';
 import { configPath } from './config.js';
+import { createConfigCommand, DEFAULT_CONFIG } from './config-cmd.js';
 
 describe('createConfigCommand', () => {
   let tmpDir: string;

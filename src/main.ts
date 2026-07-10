@@ -1,7 +1,7 @@
 import { Command, Option } from 'commander';
+import { runCommand, runCommandFormat } from './command.js';
 import { loadConfig } from './config.js';
 import { resolveModel } from './model.js';
-import { runCommand, runCommandFormat } from './command.js';
 
 export interface MainOptions {
   level?: string;

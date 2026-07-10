@@ -1,16 +1,16 @@
-import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { Command } from 'commander';
+import { existsSync } from 'node:fs';
 import chalk from 'chalk';
+import { Command } from 'commander';
+import { findExecutable } from './command.js';
 import {
+  type Config,
+  ConfigError,
   configPath,
   loadConfig,
-  ConfigError,
-  type Config,
   type MultiplexerAdapter,
 } from './config.js';
 import { collectAllFullModelIds, collectAllModels, normalizeModelId } from './model.js';
-import { findExecutable } from './command.js';
 
 export type CheckStatus = 'OK' | 'WARN' | 'ERROR';
 

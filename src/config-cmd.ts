@@ -1,9 +1,8 @@
-import { existsSync } from 'node:fs';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { Command } from 'commander';
-import { configPath, loadConfig, ConfigError } from './config.js';
+import { ConfigError, configPath, loadConfig } from './config.js';
 
 function resolveConfigPath(): string {
   return process.env.OCGO_CONFIG ?? configPath();

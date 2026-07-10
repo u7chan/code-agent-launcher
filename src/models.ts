@@ -1,6 +1,6 @@
 import { Command } from 'commander';
-import { loadConfig } from './config.js';
 import { runCommand, runCommandFormat } from './command.js';
+import { loadConfig } from './config.js';
 
 export interface ModelsCommandOptions {
   refresh?: boolean;
