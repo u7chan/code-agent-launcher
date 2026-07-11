@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'bun:test'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { assertDryRunModel, loadMatrix, validateManualAttestation } from './runner.js'
 
 describe('Codex validation matrix', () => {
@@ -134,7 +134,7 @@ exec ${process.execPath} "$@"`,
         encoding: 'utf8',
         env: {
           ...process.env,
-          PATH: `${fakePath}:${dirname(process.execPath)}:${join(resolve(process.execPath, '../../../../../'), 'bin')}:/usr/bin:/bin`,
+          PATH: `${fakePath}:${process.env.PATH}`,
         },
       },
     )
