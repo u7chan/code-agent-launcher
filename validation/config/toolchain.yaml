@@ -1,3 +1,4 @@
 codex_cli: 0.144.1
+opencode_cli: '>=1.17.0'
 bun: 1.x
 node: '>=18'
