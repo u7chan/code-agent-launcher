@@ -1,9 +1,15 @@
 import { beforeAll, describe, expect, it } from 'bun:test'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { assertDryRunModel, loadMatrix, validateManualAttestation } from './runner.js'
+import {
+  assertDryRunModel,
+  evaluate,
+  evaluateInvocation,
+  loadMatrix,
+  validateManualAttestation,
+} from './runner.js'
 
 describe('Codex validation matrix', () => {
   it('maps low, mid, and high to the agreed Codex models', () => {
@@ -172,6 +178,185 @@ exec ${process.execPath} "$@"`,
     expect(runExtended(directory, failedReport).status).toBe(1)
     expect(readFileSync(join(failedReport, 'scores.json'), 'utf8')).toContain(
       '"herdr_launch": "fail"',
+    )
+  })
+})
+
+describe('candidate evaluation with a fake CLI', () => {
+  function writeEvaluationFake(directory: string): string {
+    const path = join(directory, 'fake-evaluate')
+    writeFileSync(
+      path,
+      `#!/bin/sh
+case "$FAKE_MODE" in
+  fail) exit 8 ;;
+  retry) if [ ! -f "$FAKE_STATE" ]; then touch "$FAKE_STATE"; echo 429 >&2; exit 1; fi ;;
+  inconclusive) echo 503 >&2; exit 1 ;;
+  timeout) sleep 1 ;;
+  critical) echo CRITICAL_VIOLATION; exit 0 ;;
+esac
+[ -f "$4" ] || exit 9
+[ -n "$FAKE_LOG" ] && printf '%s|%s\n' "$PWD" "$4" >> "$FAKE_LOG"
+case "$4" in
+  *low*) echo 'ANSWER: low' ;;
+  *mid*) echo 'ANSWER: mid' ;;
+  *high*) echo 'ANSWER: high' ;;
+esac
+`,
+    )
+    chmodSync(path, 0o755)
+    return path
+  }
+
+  function runEvaluate(directory: string, reportDir: string, mode: string) {
+    return spawnSync(
+      process.execPath,
+      [
+        'validation/runner.ts',
+        'evaluate',
+        '--candidate',
+        'fake/candidate',
+        '--execute',
+        '--confirm-live',
+        '--report-dir',
+        reportDir,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          CAGENT_EVALUATE_COMMAND: writeEvaluationFake(directory),
+          FAKE_MODE: mode,
+          FAKE_STATE: join(directory, 'retry-state'),
+          FAKE_LOG: join(directory, 'invocations.log'),
+        },
+      },
+    )
+  }
+
+  it('shows a plan without calling a model until explicitly confirmed', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-evaluate-'))
+    const reportDir = join(directory, 'report')
+    const result = spawnSync(
+      process.execPath,
+      [
+        'validation/runner.ts',
+        'evaluate',
+        '--candidate',
+        'fake/candidate',
+        '--report-dir',
+        reportDir,
+      ],
+      { cwd: process.cwd(), encoding: 'utf8' },
+    )
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('Planned model calls: 18')
+    expect(readFileSync(join(reportDir, 'scores.json'), 'utf8')).toContain('not_run')
+  })
+
+  it('records passing, failed, retried, inconclusive, and critical results deterministically', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-evaluate-'))
+    const passReport = join(directory, 'pass')
+    expect(runEvaluate(directory, passReport, 'pass').status).toBe(0)
+    expect(readFileSync(join(passReport, 'scores.json'), 'utf8')).toContain('"status": "pass"')
+    expect(runEvaluate(directory, join(directory, 'failed'), 'fail').status).toBe(1)
+    const retryReport = join(directory, 'retry')
+    expect(runEvaluate(directory, retryReport, 'retry').status).toBe(0)
+    expect(readFileSync(join(retryReport, 'scores.json'), 'utf8')).toContain('"retried": true')
+    expect(readFileSync(join(retryReport, 'manifest.yaml'), 'utf8')).toContain('executed_calls: 19')
+    expect(runEvaluate(directory, join(directory, 'inconclusive'), 'inconclusive').status).toBe(1)
+    const criticalReport = join(directory, 'critical')
+    expect(runEvaluate(directory, criticalReport, 'critical').status).toBe(1)
+    expect(readFileSync(join(criticalReport, 'scores.json'), 'utf8')).toContain(
+      'CRITICAL_VIOLATION',
+    )
+  }, 10_000)
+
+  it('normalizes a real spawnSync timeout and cleans up the copied-fixture workspace', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-evaluate-'))
+    const fixture = join(process.cwd(), 'validation', 'evaluate', 'cases', 'low-summary.md')
+    const log = join(directory, 'invocations.log')
+    const previousMode = process.env.FAKE_MODE
+    const previousLog = process.env.FAKE_LOG
+    const previousCommand = process.env.CAGENT_EVALUATE_COMMAND
+    process.env.FAKE_MODE = 'timeout'
+    process.env.FAKE_LOG = log
+    process.env.CAGENT_EVALUATE_COMMAND = writeEvaluationFake(directory)
+    try {
+      expect(
+        evaluateInvocation(writeEvaluationFake(directory), 'candidate', fixture, 20).status,
+      ).toBe(124)
+      const reportDir = join(directory, 'timeout-report')
+      expect(
+        evaluate(
+          [
+            '--candidate',
+            'fake/candidate',
+            '--execute',
+            '--confirm-live',
+            '--report-dir',
+            reportDir,
+          ],
+          {
+            baseline: 'fake/baseline',
+            trials: 1,
+            timeout_ms: 20,
+            cases: [
+              {
+                id: 'low-summary',
+                level: 'low',
+                fixture: 'evaluate/cases/low-summary.md',
+                rubric: { required: ['ANSWER: low'], forbidden: [] },
+              },
+            ],
+            hidden_checks: { forbidden: [] },
+          },
+        ),
+      ).toBe(1)
+      const timeoutScores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+      expect(timeoutScores).toContain('"status": "inconclusive"')
+      expect(timeoutScores).toContain('"retried": true')
+      expect(readFileSync(join(reportDir, 'manifest.yaml'), 'utf8')).toContain('executed_calls: 4')
+      process.env.FAKE_MODE = 'pass'
+      expect(
+        evaluateInvocation(writeEvaluationFake(directory), 'candidate', fixture, 20).status,
+      ).toBe(0)
+      const [workspace, copiedFixture] = readFileSync(log, 'utf8').trim().split('|')
+      expect(workspace.startsWith(join(tmpdir(), 'cagent-evaluate-'))).toBe(true)
+      expect(copiedFixture.startsWith(workspace)).toBe(true)
+      expect(existsSync(workspace)).toBe(false)
+    } finally {
+      if (previousMode === undefined) delete process.env.FAKE_MODE
+      else process.env.FAKE_MODE = previousMode
+      if (previousLog === undefined) delete process.env.FAKE_LOG
+      else process.env.FAKE_LOG = previousLog
+      if (previousCommand === undefined) delete process.env.CAGENT_EVALUATE_COMMAND
+      else process.env.CAGENT_EVALUATE_COMMAND = previousCommand
+    }
+  })
+
+  it('only emits the standardized artifacts in an evaluation report directory', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-evaluate-'))
+    const reportDir = join(directory, 'report')
+    expect(runEvaluate(directory, reportDir, 'pass').status).toBe(0)
+    expect(
+      ['manifest.yaml', 'report.md', 'scores.json'].every((name) => {
+        try {
+          return readFileSync(join(reportDir, name), 'utf8').length > 0
+        } catch {
+          return false
+        }
+      }),
+    ).toBe(true)
+  })
+
+  it('records the evaluation configuration hash in evaluation manifests', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-evaluate-'))
+    const reportDir = join(directory, 'report')
+    expect(runEvaluate(directory, reportDir, 'pass').status).toBe(0)
+    expect(readFileSync(join(reportDir, 'manifest.yaml'), 'utf8')).toContain(
+      'evaluation_config_sha256:',
     )
   })
 })
