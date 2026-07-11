@@ -42,4 +42,4 @@ agents:
 multiplexer:
   default: herdr
   herdr:
-    enabled: false
+    enabled: true
