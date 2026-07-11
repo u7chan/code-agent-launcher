@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
   appendFileSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -10,7 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import YAML from 'yaml'
 
 type AgentLevelEntry = { expected_model: string }
@@ -111,8 +112,12 @@ function runId(): string {
   return new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')
 }
 
+function fileHash(path: string): string {
+  return createHash('sha256').update(readFileSync(path)).digest('hex')
+}
+
 function configHash(): string {
-  return createHash('sha256').update(readFileSync(configPath)).digest('hex')
+  return fileHash(configPath)
 }
 
 export function assertDryRunModel(
@@ -247,23 +252,33 @@ function isTransient(result: CommandOutput): boolean {
   )
 }
 
-function evaluateInvocation(
+export function evaluateInvocation(
   command: string,
   model: string,
   fixture: string,
   timeout: number,
 ): CommandOutput {
-  const result = spawnSync(command, ['--model', model, '--case', fixture], {
-    cwd: root,
-    env: process.env,
-    encoding: 'utf8',
-    shell: false,
-    timeout,
-  })
-  return {
-    status: result.error?.name === 'TimeoutError' ? 124 : (result.status ?? 1),
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? String(result.error ?? ''),
+  const workspace = mkdtempSync(join(tmpdir(), 'cagent-evaluate-'))
+  const copiedFixture = join(workspace, basename(fixture))
+  try {
+    copyFileSync(fixture, copiedFixture)
+    const result = spawnSync(command, ['--model', model, '--case', copiedFixture], {
+      cwd: workspace,
+      env: process.env,
+      encoding: 'utf8',
+      shell: false,
+      timeout,
+    })
+    return {
+      status:
+        (result.error as NodeJS.ErrnoException | undefined)?.code === 'ETIMEDOUT'
+          ? 124
+          : (result.status ?? 1),
+      stdout: result.stdout ?? '',
+      stderr: result.stderr ?? String(result.error ?? ''),
+    }
+  } finally {
+    rmSync(workspace, { recursive: true, force: true })
   }
 }
 
@@ -280,7 +295,7 @@ function scoreOutput(
   return { status: critical.length || missing.length ? 'fail' : 'pass', missing, critical }
 }
 
-function evaluate(args: string[]): number {
+export function evaluate(args: string[], config = loadEvaluationConfig()): number {
   const candidateValue = option(args, '--candidate')
   const candidate = candidateValue && parseCandidate(candidateValue)
   const reportDir = option(args, '--report-dir') ?? join(validationRoot, '.artifacts', runId())
@@ -288,7 +303,6 @@ function evaluate(args: string[]): number {
     console.error('A candidate in <agent/model> form is required')
     return 1
   }
-  const config = loadEvaluationConfig()
   const plannedCalls = config.cases.length * config.trials * 2
   const plan = [
     '# Candidate model evaluation plan',
@@ -326,16 +340,19 @@ function evaluate(args: string[]): number {
     return 1
   }
   const records: Array<Record<string, unknown>> = []
+  let executedCalls = 0
   for (const item of config.cases) {
     const fixture = join(validationRoot, item.fixture)
     for (let trial = 1; trial <= config.trials; trial++) {
       for (const subject of [candidateValue, config.baseline]) {
         const parsed = parseCandidate(subject)
         if (!parsed) throw new Error(`Invalid configured model: ${subject}`)
+        executedCalls++
         let result = evaluateInvocation(command, parsed.model, fixture, config.timeout_ms)
         let retried = false
         if (isTransient(result)) {
           retried = true
+          executedCalls++
           result = evaluateInvocation(command, parsed.model, fixture, config.timeout_ms)
         }
         const retryExhausted = result.status !== 0 && isTransient(result)
@@ -383,7 +400,7 @@ function evaluate(args: string[]): number {
       candidate: candidateValue,
       baseline: config.baseline,
       planned_calls: plannedCalls,
-      executed_calls: records.length,
+      executed_calls: executedCalls,
     },
     { status, candidate: candidateValue, baseline: config.baseline, records },
     [
@@ -411,6 +428,7 @@ function reportBase(profile: string, live: boolean): Record<string, unknown> {
     run_id: runId(),
     tested_commit: run('git', ['rev-parse', 'HEAD']).stdout.trim(),
     config_sha256: configHash(),
+    ...(profile === 'evaluate' ? { evaluation_config_sha256: fileHash(evaluationConfigPath) } : {}),
     codex_cli: getCliVersion('codex'),
     opencode_cli: getCliVersion('opencode'),
     profile,
