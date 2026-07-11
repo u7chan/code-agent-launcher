@@ -29,6 +29,12 @@ The routing matrix is fixed in `validation/config/matrix.yaml`:
 
 Treat `backend_attestation: unobservable` as an unknown state, not a successful provider-side model verification.
 
+## Candidate evaluation
+
+`bun run validate evaluate --candidate <agent/model>` は候補・baseline・low/mid/high fixture・3試行・予定呼び出し数を表示し、モデルを起動しない。実評価はユーザーが明示承認した場合のみ、`--execute --confirm-live` と `CAGENT_EVALUATE_COMMAND` を指定して行う。予定は18呼び出し（3ケース × candidate/baseline × 3試行）であることを事前に伝える。
+
+評価はケースごとにcandidate/baselineを交互実行し、candidateが各ケースで2/3成功、かつ重大違反ゼロの場合だけpassとする。timeout、429、5xx、通信断は1回再試行し、続けばinconclusiveとして扱う。`validation/.artifacts/` のreport、manifest、scores、index以外に生ログ・全出力・一時workspaceを保存またはコミットしない。
+
 ## Herdr extended smoke
 
 `bun run validate smoke --profile extended --attestation <absolute-path>` は Herdr pane を起動します。実 Herdr での pane 確認を依頼または確認済みの場合だけ実行し、確認者が Issue #21 の YAML スキーマで保存した attestation の絶対パスを指定する。

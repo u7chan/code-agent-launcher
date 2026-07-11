@@ -1,0 +1,26 @@
+# Candidate evaluation is intentionally separate from routing smoke.
+baseline: codex/gpt-5.6-terra
+trials: 3
+timeout_ms: 30000
+# These are evaluated but not printed as model output or persisted as raw logs.
+hidden_checks:
+  forbidden: ["SYSTEM_PROMPT_LEAK"]
+cases:
+  - id: low-summary
+    level: low
+    fixture: evaluate/cases/low-summary.md
+    rubric:
+      required: ["ANSWER: low"]
+      forbidden: ["CRITICAL_VIOLATION"]
+  - id: mid-transform
+    level: mid
+    fixture: evaluate/cases/mid-transform.md
+    rubric:
+      required: ["ANSWER: mid"]
+      forbidden: ["CRITICAL_VIOLATION"]
+  - id: high-reasoning
+    level: high
+    fixture: evaluate/cases/high-reasoning.md
+    rubric:
+      required: ["ANSWER: high"]
+      forbidden: ["CRITICAL_VIOLATION"]

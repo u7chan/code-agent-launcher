@@ -175,3 +175,105 @@ exec ${process.execPath} "$@"`,
     )
   })
 })
+
+describe('candidate evaluation with a fake CLI', () => {
+  function writeEvaluationFake(directory: string): string {
+    const path = join(directory, 'fake-evaluate')
+    writeFileSync(
+      path,
+      `#!/bin/sh
+case "$FAKE_MODE" in
+  fail) exit 8 ;;
+  retry) if [ ! -f "$FAKE_STATE" ]; then touch "$FAKE_STATE"; echo 429 >&2; exit 1; fi ;;
+  inconclusive) echo 503 >&2; exit 1 ;;
+  critical) echo CRITICAL_VIOLATION; exit 0 ;;
+esac
+case "$4" in
+  *low*) echo 'ANSWER: low' ;;
+  *mid*) echo 'ANSWER: mid' ;;
+  *high*) echo 'ANSWER: high' ;;
+esac
+`,
+    )
+    chmodSync(path, 0o755)
+    return path
+  }
+
+  function runEvaluate(directory: string, reportDir: string, mode: string) {
+    return spawnSync(
+      process.execPath,
+      [
+        'validation/runner.ts',
+        'evaluate',
+        '--candidate',
+        'fake/candidate',
+        '--execute',
+        '--confirm-live',
+        '--report-dir',
+        reportDir,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          CAGENT_EVALUATE_COMMAND: writeEvaluationFake(directory),
+          FAKE_MODE: mode,
+          FAKE_STATE: join(directory, 'retry-state'),
+        },
+      },
+    )
+  }
+
+  it('shows a plan without calling a model until explicitly confirmed', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-evaluate-'))
+    const reportDir = join(directory, 'report')
+    const result = spawnSync(
+      process.execPath,
+      [
+        'validation/runner.ts',
+        'evaluate',
+        '--candidate',
+        'fake/candidate',
+        '--report-dir',
+        reportDir,
+      ],
+      { cwd: process.cwd(), encoding: 'utf8' },
+    )
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('Planned model calls: 18')
+    expect(readFileSync(join(reportDir, 'scores.json'), 'utf8')).toContain('not_run')
+  })
+
+  it('records passing, failed, retried, inconclusive, and critical results deterministically', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-evaluate-'))
+    const passReport = join(directory, 'pass')
+    expect(runEvaluate(directory, passReport, 'pass').status).toBe(0)
+    expect(readFileSync(join(passReport, 'scores.json'), 'utf8')).toContain('"status": "pass"')
+    expect(runEvaluate(directory, join(directory, 'failed'), 'fail').status).toBe(1)
+    const retryReport = join(directory, 'retry')
+    expect(runEvaluate(directory, retryReport, 'retry').status).toBe(0)
+    expect(readFileSync(join(retryReport, 'scores.json'), 'utf8')).toContain('"retried": true')
+    expect(runEvaluate(directory, join(directory, 'inconclusive'), 'inconclusive').status).toBe(1)
+    const criticalReport = join(directory, 'critical')
+    expect(runEvaluate(directory, criticalReport, 'critical').status).toBe(1)
+    expect(readFileSync(join(criticalReport, 'scores.json'), 'utf8')).toContain(
+      'CRITICAL_VIOLATION',
+    )
+  })
+
+  it('only emits the standardized artifacts in an evaluation report directory', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-evaluate-'))
+    const reportDir = join(directory, 'report')
+    expect(runEvaluate(directory, reportDir, 'pass').status).toBe(0)
+    expect(
+      ['manifest.yaml', 'report.md', 'scores.json'].every((name) => {
+        try {
+          return readFileSync(join(reportDir, name), 'utf8').length > 0
+        } catch {
+          return false
+        }
+      }),
+    ).toBe(true)
+  })
+})

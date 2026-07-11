@@ -1,6 +1,14 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import YAML from 'yaml'
@@ -11,6 +19,22 @@ type Matrix = Record<string, AgentMatrix>
 
 export type CommandOutput = { status: number; stdout: string; stderr: string }
 type Status = 'pass' | 'fail'
+export type EvaluationStatus = Status | 'inconclusive'
+
+export type EvaluationCase = {
+  id: string
+  level: 'low' | 'mid' | 'high'
+  fixture: string
+  rubric: { required: string[]; forbidden: string[] }
+}
+
+export type EvaluationConfig = {
+  baseline: string
+  trials: number
+  timeout_ms: number
+  cases: EvaluationCase[]
+  hidden_checks: { forbidden: string[] }
+}
 
 type LevelResult = {
   agent: string
@@ -42,9 +66,35 @@ const builtEntryPoint = join(root, 'dist', 'index.js')
 const configPath = join(validationRoot, 'config', 'cagent.yaml')
 const matrixPath = join(validationRoot, 'config', 'matrix.yaml')
 const promptPath = join(validationRoot, 'smoke', 'cases', 'model-routing', 'prompt.md')
+const evaluationConfigPath = join(validationRoot, 'config', 'evaluation.yaml')
 
 export function loadMatrix(path = matrixPath): Matrix {
   return YAML.parse(readFileSync(path, 'utf8')) as Matrix
+}
+
+export function loadEvaluationConfig(path = evaluationConfigPath): EvaluationConfig {
+  const config = YAML.parse(readFileSync(path, 'utf8')) as EvaluationConfig
+  if (
+    !config ||
+    typeof config.baseline !== 'string' ||
+    config.trials !== 3 ||
+    !Number.isInteger(config.timeout_ms) ||
+    !Array.isArray(config.cases) ||
+    config.cases.length !== 3 ||
+    !Array.isArray(config.hidden_checks?.forbidden)
+  )
+    throw new Error('Invalid evaluation config')
+  for (const item of config.cases) {
+    if (!['low', 'mid', 'high'].includes(item.level) || !item.id || !item.fixture)
+      throw new Error('Invalid evaluation case')
+  }
+  return config
+}
+
+export function parseCandidate(value: string): { agent: string; model: string } | undefined {
+  const slash = value.indexOf('/')
+  if (slash < 1 || slash === value.length - 1) return undefined
+  return { agent: value.slice(0, slash), model: value.slice(slash + 1) }
 }
 
 function run(command: string, args: string[], cwd = root, env = process.env): CommandOutput {
@@ -175,6 +225,185 @@ function writeReport(
   writeFileSync(join(reportDir, 'manifest.yaml'), YAML.stringify(manifest))
   writeFileSync(join(reportDir, 'scores.json'), `${JSON.stringify(scores, null, 2)}\n`)
   writeFileSync(join(reportDir, 'report.md'), `${lines.join('\n')}\n`)
+}
+
+function writeEvaluationReport(
+  reportDir: string,
+  manifest: Record<string, unknown>,
+  scores: Record<string, unknown>,
+  lines: string[],
+): void {
+  writeReport(reportDir, manifest, scores, lines)
+  const indexPath = join(validationRoot, '.artifacts', 'index.md')
+  mkdirSync(join(validationRoot, '.artifacts'), { recursive: true })
+  if (!existsSync(indexPath)) writeFileSync(indexPath, '# Candidate evaluation index\n\n')
+  appendFileSync(indexPath, `- ${manifest.run_id}: ${reportDir}\n`)
+}
+
+function isTransient(result: CommandOutput): boolean {
+  return (
+    result.status === 124 ||
+    /\b429\b|\b5\d\d\b|network|connection|timed? out/i.test(`${result.stderr}\n${result.stdout}`)
+  )
+}
+
+function evaluateInvocation(
+  command: string,
+  model: string,
+  fixture: string,
+  timeout: number,
+): CommandOutput {
+  const result = spawnSync(command, ['--model', model, '--case', fixture], {
+    cwd: root,
+    env: process.env,
+    encoding: 'utf8',
+    shell: false,
+    timeout,
+  })
+  return {
+    status: result.error?.name === 'TimeoutError' ? 124 : (result.status ?? 1),
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? String(result.error ?? ''),
+  }
+}
+
+function scoreOutput(
+  output: string,
+  rubric: EvaluationCase['rubric'],
+): {
+  status: EvaluationStatus
+  missing: string[]
+  critical: string[]
+} {
+  const missing = rubric.required.filter((text) => !output.includes(text))
+  const critical = rubric.forbidden.filter((text) => output.includes(text))
+  return { status: critical.length || missing.length ? 'fail' : 'pass', missing, critical }
+}
+
+function evaluate(args: string[]): number {
+  const candidateValue = option(args, '--candidate')
+  const candidate = candidateValue && parseCandidate(candidateValue)
+  const reportDir = option(args, '--report-dir') ?? join(validationRoot, '.artifacts', runId())
+  if (!candidate) {
+    console.error('A candidate in <agent/model> form is required')
+    return 1
+  }
+  const config = loadEvaluationConfig()
+  const plannedCalls = config.cases.length * config.trials * 2
+  const plan = [
+    '# Candidate model evaluation plan',
+    '',
+    `- Candidate: ${candidateValue}`,
+    `- Baseline: ${config.baseline}`,
+    `- Cases: ${config.cases.map((item) => `${item.id} (${item.level})`).join(', ')}`,
+    `- Trials per model/case: ${config.trials}`,
+    `- Planned model calls: ${plannedCalls}`,
+  ]
+  console.log(plan.slice(2).join('\n'))
+  const execute = args.includes('--execute')
+  const confirmed = args.includes('--confirm-live')
+  if (!execute || !confirmed) {
+    const diagnostic = execute
+      ? 'Live execution requires explicit --confirm-live acknowledgement.'
+      : 'Plan only. Add --execute --confirm-live to make external model calls.'
+    console.log(diagnostic)
+    writeEvaluationReport(
+      reportDir,
+      {
+        ...reportBase('evaluate', false),
+        candidate: candidateValue,
+        baseline: config.baseline,
+        planned_calls: plannedCalls,
+      },
+      { status: 'not_run', planned_calls: plannedCalls },
+      [...plan, '', `- Status: **not_run**`, `- ${diagnostic}`],
+    )
+    return execute ? 1 : 0
+  }
+  const command = process.env.CAGENT_EVALUATE_COMMAND
+  if (!command) {
+    console.error('CAGENT_EVALUATE_COMMAND is required for live evaluation')
+    return 1
+  }
+  const records: Array<Record<string, unknown>> = []
+  for (const item of config.cases) {
+    const fixture = join(validationRoot, item.fixture)
+    for (let trial = 1; trial <= config.trials; trial++) {
+      for (const subject of [candidateValue, config.baseline]) {
+        const parsed = parseCandidate(subject)
+        if (!parsed) throw new Error(`Invalid configured model: ${subject}`)
+        let result = evaluateInvocation(command, parsed.model, fixture, config.timeout_ms)
+        let retried = false
+        if (isTransient(result)) {
+          retried = true
+          result = evaluateInvocation(command, parsed.model, fixture, config.timeout_ms)
+        }
+        const retryExhausted = result.status !== 0 && isTransient(result)
+        const scored =
+          result.status === 0
+            ? scoreOutput(result.stdout, {
+                required: item.rubric.required,
+                forbidden: [...item.rubric.forbidden, ...config.hidden_checks.forbidden],
+              })
+            : {
+                status: retryExhausted ? 'inconclusive' : ('fail' as EvaluationStatus),
+                missing: [],
+                critical: [],
+              }
+        records.push({
+          case: item.id,
+          level: item.level,
+          trial,
+          subject,
+          status: scored.status,
+          retried,
+          missing: scored.missing,
+          critical: scored.critical,
+        })
+      }
+    }
+  }
+  const candidateRecords = records.filter((record) => record.subject === candidateValue)
+  const critical = candidateRecords.some((record) => (record.critical as string[]).length > 0)
+  const inconclusive = candidateRecords.some((record) => record.status === 'inconclusive')
+  const passedCases = config.cases.filter(
+    (item) =>
+      candidateRecords.filter((record) => record.case === item.id && record.status === 'pass')
+        .length >= 2,
+  ).length
+  const status: EvaluationStatus = inconclusive
+    ? 'inconclusive'
+    : !critical && passedCases === config.cases.length
+      ? 'pass'
+      : 'fail'
+  writeEvaluationReport(
+    reportDir,
+    {
+      ...reportBase('evaluate', true),
+      candidate: candidateValue,
+      baseline: config.baseline,
+      planned_calls: plannedCalls,
+      executed_calls: records.length,
+    },
+    { status, candidate: candidateValue, baseline: config.baseline, records },
+    [
+      '# Candidate model evaluation report',
+      '',
+      `- Status: **${status}**`,
+      `- Candidate: ${candidateValue}`,
+      `- Baseline: ${config.baseline}`,
+      `- Rule: 2/3 successes for every case and zero critical violations`,
+      '',
+      '| Case | Trial | Subject | Status | Retried |',
+      '| --- | --- | --- | --- | --- |',
+      ...records.map(
+        (record) =>
+          `| ${record.case} | ${record.trial} | ${record.subject} | ${record.status} | ${record.retried} |`,
+      ),
+    ],
+  )
+  console.log(`Validation report: ${reportDir}`)
+  return status === 'pass' ? 0 : 1
 }
 
 function reportBase(profile: string, live: boolean): Record<string, unknown> {
@@ -381,8 +610,9 @@ function smoke(args: string[]): number {
 function main(): number {
   const [command, ...args] = process.argv.slice(2)
   if (command === 'smoke') return smoke(args)
+  if (command === 'evaluate') return evaluate(args)
   console.error(
-    'Usage: bun run validate smoke --profile <core|extended> [--agent <id>] [--level <level>] [--attestation <path>] [--live] [--report-dir <path>]',
+    'Usage: bun run validate <smoke|evaluate> ...\n  evaluate --candidate <agent/model> [--execute --confirm-live] [--report-dir <path>]',
   )
   return 1
 }
