@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { beforeAll, describe, expect, it } from 'bun:test'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -98,10 +98,23 @@ describe('manual attestation', () => {
 })
 
 describe('extended smoke with fake CLIs', () => {
+  beforeAll(() => {
+    expect(spawnSync('bun', ['run', 'build'], { cwd: process.cwd() }).status).toBe(0)
+  })
+
   function writeFake(directory: string, name: string, source: string): void {
     const path = join(directory, name)
     writeFileSync(path, `#!/bin/sh\n${source}\n`)
     chmodSync(path, 0o755)
+  }
+
+  function writeFakeBun(directory: string): void {
+    writeFake(
+      directory,
+      'bun',
+      `if [ "$1 $2" = "run build" ]; then exit 0; fi
+exec ${process.execPath} "$@"`,
+    )
   }
 
   function runExtended(fakePath: string, reportDir: string, attestation?: string) {
@@ -129,7 +142,7 @@ describe('extended smoke with fake CLIs', () => {
 
   it('records a passing fake Herdr launch and valid human attestation', () => {
     const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
-    writeFake(directory, 'bun', `exec ${process.execPath} "$@"`)
+    writeFakeBun(directory)
     writeFake(directory, 'codex', 'echo codex 1.0')
     writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
     writeFake(
@@ -149,7 +162,7 @@ describe('extended smoke with fake CLIs', () => {
 
   it('fails deterministically when Herdr is unavailable or returns an error', () => {
     const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
-    writeFake(directory, 'bun', `exec ${process.execPath} "$@"`)
+    writeFakeBun(directory)
     writeFake(directory, 'codex', 'echo codex 1.0')
     writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
     const absentReport = join(directory, 'absent-report')
