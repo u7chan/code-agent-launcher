@@ -29,6 +29,12 @@ The routing matrix is fixed in `validation/config/matrix.yaml`:
 
 Treat `backend_attestation: unobservable` as an unknown state, not a successful provider-side model verification.
 
+## Herdr extended smoke
+
+`bun run validate smoke --profile extended --attestation <absolute-path>` は Herdr pane を起動します。実 Herdr での pane 確認を依頼または確認済みの場合だけ実行し、確認者が Issue #21 の YAML スキーマで保存した attestation の絶対パスを指定する。
+
+レポートでは `automatic_routing`、`manual_attestation`、`backend_attestation` を混同せずに報告する。attestation、スクリーンショット、生ログ、`validation/.artifacts/` はコミットしない。
+
 ## Validation PRs
 
 When asked for a validation PR, require a clean worktree before the formal run. Commit the tested change first, run validation, then commit the report separately. Do not commit files below `validation/.artifacts/`.
