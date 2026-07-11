@@ -14,7 +14,7 @@
     "test": "bun test src/ validation/",
     "validate": "bun validation/runner.ts",
     "validate:check": "tsc --noEmit -p validation/tsconfig.json",
-    "lint": "biome lint src/ && tsc --noEmit",
+    "lint": "biome lint src/ validation/ && tsc --noEmit",
     "lint:fix": "biome lint --write src/",
     "format": "biome format --write src/ validation/",
     "format:check": "biome format src/ validation/",

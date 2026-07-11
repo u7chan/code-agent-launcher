@@ -36,7 +36,7 @@ export function normalizeAgentModelId(modelId: string, agent: AgentConfig): stri
     throw new ModelError('model id is empty')
   }
   if (agent.model_id_prefix === false) {
-    return trimmed
+    return stripProvider(trimmed, agent.provider ?? 'opencode-go')
   }
   return normalizeModelId(trimmed, agent.provider ?? 'opencode-go')
 }

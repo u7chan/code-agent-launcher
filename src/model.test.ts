@@ -74,6 +74,17 @@ describe('normalizeAgentModelId', () => {
       }),
     ).toBe('gpt-5.6-sol')
   })
+
+  it('removes the agent provider prefix when prefixes are disabled', () => {
+    expect(
+      normalizeAgentModelId('codex/gpt-5.6-sol', {
+        bin: 'codex',
+        provider: 'codex',
+        model_id_prefix: false,
+        levels: {},
+      }),
+    ).toBe('gpt-5.6-sol')
+  })
 })
 
 describe('isKnownModel', () => {
@@ -189,6 +200,23 @@ describe('resolveModel', () => {
     config.levels = config.agents.codex.levels
 
     expect(resolveModel(config, { agent: 'codex', cliLevel: 'low' }).modelId).toBe('gpt-5.6-luna')
+  })
+
+  it('removes a Codex provider prefix from an explicit model', () => {
+    const config = makeConfig()
+    config.default_agent = 'codex'
+    config.agents = {
+      codex: {
+        bin: 'codex',
+        provider: 'codex',
+        model_id_prefix: false,
+        levels: config.levels,
+      },
+    }
+
+    expect(resolveModel(config, { agent: 'codex', cliModel: 'codex/gpt-5.6-luna' }).modelId).toBe(
+      'gpt-5.6-luna',
+    )
   })
 })
 
