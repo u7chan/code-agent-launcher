@@ -27,8 +27,6 @@ type LevelResult = {
   routingStatus: 'pass' | 'fail'
   live?: { status: 'pass' | 'fail'; exitCode: number; diagnostic?: string }
   backendAttestation: 'unobservable'
-  cliHelp?: 'pass' | 'fail'
-  cliVersion?: 'pass' | 'fail'
 }
 
 const root = resolve(import.meta.dir, '..')
@@ -83,21 +81,11 @@ export function assertDryRunModel(
   return false
 }
 
-function cagentArgs(
-  agentName: string,
-  level: string,
-  prompt: string,
-  live: boolean,
-  outputFile?: string,
-): string[] {
-  const extras = [
-    '--sandbox',
-    'read-only',
-    '--skip-git-repo-check',
-    '--ephemeral',
-    ...(outputFile ? ['--output-last-message', outputFile] : []),
-    prompt,
-  ]
+function cagentArgs(agentName: string, level: string, prompt: string, live: boolean): string[] {
+  const extras =
+    agentName === 'codex'
+      ? ['--sandbox', 'read-only', '--skip-git-repo-check', '--ephemeral', prompt]
+      : [prompt]
   return [
     builtEntryPoint,
     ...(live ? [] : ['--dry-run']),
@@ -117,8 +105,7 @@ function runLive(
 ): { status: 'pass' | 'fail'; exitCode: number; diagnostic?: string } {
   const workspace = mkdtempSync(join(tmpdir(), 'cagent-validation-'))
   try {
-    const outputFile = join(workspace, 'last-message.txt')
-    const result = run('node', cagentArgs(agentName, level, prompt, true, outputFile), workspace, {
+    const result = run('node', cagentArgs(agentName, level, prompt, true), workspace, {
       ...process.env,
       CAGENT_CONFIG: configPath,
     })
@@ -147,15 +134,13 @@ function getCliVersion(bin: string): string {
   }
 }
 
-function verifyCliHelp(result: CommandOutput): 'pass' | 'fail' {
-  return result.status === 0 && /Usage:/i.test(result.stdout) ? 'pass' : 'fail'
-}
-
-function verifyCliVersion(result: CommandOutput): 'pass' | 'fail' {
-  return result.status === 0 ? 'pass' : 'fail'
-}
-
-function writeReport(results: LevelResult[], live: boolean, reportDir: string): void {
+function writeReport(
+  results: LevelResult[],
+  live: boolean,
+  reportDir: string,
+  cliHelp: 'pass' | 'fail',
+  cliVersion: 'pass' | 'fail',
+): void {
   mkdirSync(reportDir, { recursive: true })
   const testedCommit = run('git', ['rev-parse', 'HEAD']).stdout.trim()
   const manifest = {
@@ -166,13 +151,15 @@ function writeReport(results: LevelResult[], live: boolean, reportDir: string): 
     opencode_cli: getCliVersion('opencode'),
     mode: live ? 'live' : 'routing-only',
     backend_attestation: 'unobservable',
+    cli_help: cliHelp,
+    cli_version: cliVersion,
   }
   const scores = { routing: results }
-  const allPass = results.every(
+  const routingPass = results.every(
     (result) => result.routingStatus === 'pass' && result.live?.status !== 'fail',
   )
-    ? 'pass'
-    : 'fail'
+  const cliPass = cliHelp === 'pass' && cliVersion === 'pass'
+  const allPass = routingPass && cliPass ? 'pass' : 'fail'
   const lines = [
     '# Model routing smoke report',
     '',
@@ -182,6 +169,8 @@ function writeReport(results: LevelResult[], live: boolean, reportDir: string): 
     `- Codex CLI: ${manifest.codex_cli}`,
     `- OpenCode CLI: ${manifest.opencode_cli}`,
     `- Backend attestation: ${manifest.backend_attestation}`,
+    `- CLI --help: ${cliHelp}`,
+    `- CLI --version: ${cliVersion}`,
     '',
     '| Agent | Level | Expected model | Routing | Live run |',
     '| --- | --- | --- | --- | --- |',
@@ -222,6 +211,10 @@ function smoke(args: string[]): number {
   console.log('Verifying --help / --version...')
   const helpResult = run('node', [builtEntryPoint, '--help'])
   const versionResult = run('node', [builtEntryPoint, '--version'])
+  const cliHelp = helpResult.status === 0 && /Usage:/i.test(helpResult.stdout) ? 'pass' : 'fail'
+  const cliVersion = versionResult.status === 0 ? 'pass' : 'fail'
+  if (cliHelp === 'fail') console.error('  --help verification failed')
+  if (cliVersion === 'fail') console.error('  --version verification failed')
 
   const matrix = loadMatrix()
   const agentNames = requestedAgent ? [requestedAgent] : Object.keys(matrix)
@@ -254,8 +247,6 @@ function smoke(args: string[]): number {
         dryRun,
         routingStatus,
         backendAttestation: 'unobservable',
-        cliHelp: verifyCliHelp(helpResult),
-        cliVersion: verifyCliVersion(versionResult),
       }
       if (live) {
         result.live = runLive(agentName, level, prompt)
@@ -264,13 +255,13 @@ function smoke(args: string[]): number {
     }
   }
 
-  writeReport(results, live, reportDir)
+  writeReport(results, live, reportDir, cliHelp, cliVersion)
   console.log(`\nValidation report: ${reportDir}`)
-  return results.every(
+  const routingPass = results.every(
     (result) => result.routingStatus === 'pass' && result.live?.status !== 'fail',
   )
-    ? 0
-    : 1
+  const cliPass = cliHelp === 'pass' && cliVersion === 'pass'
+  return routingPass && cliPass ? 0 : 1
 }
 
 function main(): number {
