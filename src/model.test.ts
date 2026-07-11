@@ -10,6 +10,7 @@ import {
   isProviderModel,
   listLevels,
   ModelError,
+  normalizeAgentModelId,
   normalizeModelId,
   resolveModel,
   stripProvider,
@@ -59,6 +60,19 @@ describe('normalizeModelId', () => {
 
   it('rejects empty ids', () => {
     expect(() => normalizeModelId('', 'opencode-go')).toThrow(ModelError)
+  })
+})
+
+describe('normalizeAgentModelId', () => {
+  it('keeps raw model IDs for agents that disable provider prefixes', () => {
+    expect(
+      normalizeAgentModelId('gpt-5.6-sol', {
+        bin: 'codex',
+        provider: 'codex',
+        model_id_prefix: false,
+        levels: {},
+      }),
+    ).toBe('gpt-5.6-sol')
   })
 })
 
@@ -152,6 +166,29 @@ describe('resolveModel', () => {
         envLevel: 'invalid',
       }),
     ).toThrow('unknown level')
+  })
+
+  it('keeps Codex model IDs unprefixed when the agent disables prefixes', () => {
+    const config = makeConfig()
+    config.default_agent = 'codex'
+    config.agents = {
+      codex: {
+        bin: 'codex',
+        provider: 'codex',
+        model_id_prefix: false,
+        levels: {
+          low: {
+            description: 'Fast tasks',
+            default_model: 'gpt-5.6-luna',
+            models: ['gpt-5.6-luna'],
+          },
+        },
+      },
+    }
+    config.default_level = 'low'
+    config.levels = config.agents.codex.levels
+
+    expect(resolveModel(config, { agent: 'codex', cliLevel: 'low' }).modelId).toBe('gpt-5.6-luna')
   })
 })
 

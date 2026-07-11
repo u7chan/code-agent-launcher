@@ -36,6 +36,9 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Local model-validation artifacts
+validation/.artifacts/
+
 # Package manager lock files (project uses bun, but keep npm/yarn locks ignored if generated)
 package-lock.json
 yarn.lock

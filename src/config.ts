@@ -11,6 +11,8 @@ export interface LevelConfig {
 export interface AgentConfig {
   bin: string
   provider?: string
+  /** Set false for CLIs, such as Codex, that expect raw model IDs. */
+  model_id_prefix?: boolean
   levels: Record<string, LevelConfig>
 }
 export interface MultiplexerAdapter {
@@ -106,6 +108,7 @@ function normalize(root: Record<string, unknown>): Config {
       agents[id] = {
         bin: string(agent.bin, `agent "${id}".bin must be a string`),
         provider: typeof agent.provider === 'string' ? agent.provider : undefined,
+        model_id_prefix: agent.model_id_prefix !== false,
         levels: levels(agent.levels),
       }
     }
@@ -116,6 +119,7 @@ function normalize(root: Record<string, unknown>): Config {
       'opencode-go': {
         bin: string(root.opencode_bin, 'opencode_bin must be a string'),
         provider: string(root.provider, 'provider must be a string'),
+        model_id_prefix: true,
         levels: levels(root.levels),
       },
     }

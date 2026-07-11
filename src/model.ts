@@ -1,4 +1,4 @@
-import { type Config, getAgent, type LevelConfig } from './config.js'
+import { type AgentConfig, type Config, getAgent, type LevelConfig } from './config.js'
 
 export interface ResolveOptions {
   agent?: string
@@ -30,6 +30,17 @@ export function normalizeModelId(modelId: string, provider: string): string {
   return `${provider}/${trimmed}`
 }
 
+export function normalizeAgentModelId(modelId: string, agent: AgentConfig): string {
+  const trimmed = modelId.trim()
+  if (trimmed.length === 0) {
+    throw new ModelError('model id is empty')
+  }
+  if (agent.model_id_prefix === false) {
+    return trimmed
+  }
+  return normalizeModelId(trimmed, agent.provider ?? 'opencode-go')
+}
+
 export function stripProvider(modelId: string, provider: string): string {
   const prefix = `${provider}/`
   if (modelId.startsWith(prefix)) {
@@ -53,7 +64,7 @@ export function collectAllFullModelIds(config: Config, agent?: string): string[]
   const selected = agentConfig(config, agent)
   for (const level of Object.values(selected.levels)) {
     for (const model of level.models) {
-      seen.add(normalizeModelId(model, selected.provider ?? 'opencode-go'))
+      seen.add(normalizeAgentModelId(model, selected))
     }
   }
   return Array.from(seen)
@@ -62,12 +73,12 @@ export function collectAllFullModelIds(config: Config, agent?: string): string[]
 export function isKnownModel(modelId: string, config: Config, agent?: string): boolean {
   const selected = agentConfig(config, agent)
   const provider = selected.provider ?? 'opencode-go'
-  const normalized = normalizeModelId(modelId, provider)
+  const normalized = normalizeAgentModelId(modelId, selected)
   const short = stripProvider(normalized, provider)
 
   for (const level of Object.values(selected.levels)) {
     for (const model of level.models) {
-      if (model === short || normalizeModelId(model, provider) === normalized) {
+      if (model === short || normalizeAgentModelId(model, selected) === normalized) {
         return true
       }
     }
@@ -189,7 +200,6 @@ export function resolveModel(
 ): { modelId: string; levelName?: string; warnings: string[] } {
   const warnings: string[] = []
   const selected = agentConfig(config, options.agent)
-  const provider = selected.provider ?? 'opencode-go'
 
   const hasExplicitModel = Boolean(options.cliModel || options.envModel)
   const effectiveLevel = options.cliLevel ?? options.envLevel
@@ -214,7 +224,7 @@ export function resolveModel(
     throw new ModelError(`could not resolve model for level "${levelName ?? config.default_level}"`)
   }
 
-  const modelId = normalizeModelId(rawModel, provider)
+  const modelId = normalizeAgentModelId(rawModel, selected)
 
   const validation = validateKnownModel(rawModel, config, options.agent)
   if (!validation.known) {

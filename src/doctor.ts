@@ -7,8 +7,8 @@ import {
   type Config,
   ConfigError,
   loadConfig,
-  resolveConfigPath,
   type MultiplexerAdapter,
+  resolveConfigPath,
 } from './config.js'
 import { collectAllFullModelIds, collectAllModels, normalizeModelId } from './model.js'
 

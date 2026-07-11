@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
-import { formatCommandSpec } from '../command.js'
 import type { CommandSpec } from '../agents/types.js'
+import { formatCommandSpec } from '../command.js'
 
 export interface HerdrContext {
   command: CommandSpec

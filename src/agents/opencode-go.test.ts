@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { opencodeGoAdapter } from './opencode-go.js'
+
 const config = { bin: 'opencode', provider: 'opencode-go', levels: {} }
 describe('opencodeGoAdapter', () => {
   it('builds a non-interactive run command', () => {

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Validate Code Agent Launcher"
+  short_description: "Run local cagent validation and reports"
+  default_prompt: "Use $validate-code-agent-launcher to run the local cagent validation workflow."

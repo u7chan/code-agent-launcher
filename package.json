@@ -11,12 +11,14 @@
     "build": "tsc && chmod +x dist/index.js && find dist -name '*.test.js' -delete",
     "start": "node dist/index.js",
     "dev": "bun src/index.ts",
-    "test": "bun test src/",
+    "test": "bun test src/ validation/",
+    "validate": "bun validation/runner.ts",
+    "validate:check": "tsc --noEmit -p validation/tsconfig.json",
     "lint": "biome lint src/ && tsc --noEmit",
     "lint:fix": "biome lint --write src/",
-    "format": "biome format --write src/",
-    "format:check": "biome format src/",
-    "check": "biome check src/ && tsc --noEmit"
+    "format": "biome format --write src/ validation/",
+    "format:check": "biome format src/ validation/",
+    "check": "biome check src/ validation/ && tsc --noEmit && bun run validate:check"
   },
   "dependencies": {
     "chalk": "^5.3.0",

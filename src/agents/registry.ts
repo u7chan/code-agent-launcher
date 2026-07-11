@@ -1,6 +1,7 @@
 import { codexAdapter } from './codex.js'
 import { opencodeGoAdapter } from './opencode-go.js'
 import type { CodingAgentAdapter } from './types.js'
+
 const adapters: Record<string, CodingAgentAdapter> = {
   'opencode-go': opencodeGoAdapter,
   codex: codexAdapter,
