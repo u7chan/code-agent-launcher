@@ -23,7 +23,7 @@ bun run validate smoke --profile core --live
 | codex | high | gpt-5.6-sol |
 | opencode-go | low | opencode-go/deepseek-v4-flash |
 | opencode-go | mid | opencode-go/deepseek-v4-pro |
-| opencode-go | high | opencode-go/minimax-m3 |
+| opencode-go | high | opencode-go/kimi-k2.7-code |
 
 レポートは既定で `validation/.artifacts/` に生成され、Git管理されません。
 

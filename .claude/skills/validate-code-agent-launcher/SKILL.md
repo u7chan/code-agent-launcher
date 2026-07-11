@@ -25,7 +25,7 @@ The routing matrix is fixed in `validation/config/matrix.yaml`:
 | codex | high | gpt-5.6-sol |
 | opencode-go | low | opencode-go/deepseek-v4-flash |
 | opencode-go | mid | opencode-go/deepseek-v4-pro |
-| opencode-go | high | opencode-go/minimax-m3 |
+| opencode-go | high | opencode-go/kimi-k2.7-code |
 
 Treat `backend_attestation: unobservable` as an unknown state, not a successful provider-side model verification.
 

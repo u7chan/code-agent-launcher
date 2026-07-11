@@ -36,8 +36,8 @@ agents:
         models: [deepseek-v4-pro]
       high:
         description: Frontier agentic coding tasks
-        default_model: minimax-m3
-        models: [minimax-m3]
+        default_model: kimi-k2.7-code
+        models: [kimi-k2.7-code]
 
 multiplexer:
   default: herdr

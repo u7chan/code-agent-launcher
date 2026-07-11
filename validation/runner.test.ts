@@ -31,7 +31,7 @@ describe('OpenCode validation matrix', () => {
     expect(loadMatrix()['opencode-go']).toEqual({
       low: { expected_model: 'opencode-go/deepseek-v4-flash' },
       mid: { expected_model: 'opencode-go/deepseek-v4-pro' },
-      high: { expected_model: 'opencode-go/minimax-m3' },
+      high: { expected_model: 'opencode-go/kimi-k2.7-code' },
     })
   })
 
