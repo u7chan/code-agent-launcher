@@ -5,3 +5,10 @@ codex:
     expected_model: gpt-5.6-terra
   high:
     expected_model: gpt-5.6-sol
+opencode-go:
+  low:
+    expected_model: opencode-go/deepseek-v4-flash
+  mid:
+    expected_model: opencode-go/deepseek-v4-pro
+  high:
+    expected_model: opencode-go/kimi-k2.7-code

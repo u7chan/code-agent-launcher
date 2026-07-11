@@ -21,6 +21,23 @@ agents:
         description: Frontier agentic coding tasks
         default_model: gpt-5.6-sol
         models: [gpt-5.6-sol]
+  opencode-go:
+    bin: opencode
+    provider: opencode-go
+    model_id_prefix: true
+    levels:
+      low:
+        description: Fast and affordable tasks
+        default_model: deepseek-v4-flash
+        models: [deepseek-v4-flash]
+      mid:
+        description: Balanced everyday tasks
+        default_model: deepseek-v4-pro
+        models: [deepseek-v4-pro]
+      high:
+        description: Frontier agentic coding tasks
+        default_model: kimi-k2.7-code
+        models: [kimi-k2.7-code]
 
 multiplexer:
   default: herdr
