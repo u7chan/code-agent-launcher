@@ -34,3 +34,17 @@ cagent doctor
 ## エージェント向けルール
 
 設定ファイルは `~/.config/cagent/config.yaml` です。環境変数には `CAGENT_CONFIG` / `CAGENT_AGENT` / `CAGENT_MODEL` / `CAGENT_LEVEL` を使用します。
+
+## ローカル検証
+
+Codex向けの検証設定は [`validation/`](validation/) で管理します。
+
+```bash
+# テストビルドとCodexモデルのルーティングを確認
+bun run validate smoke --profile core
+
+# Codex CLIも実際に起動
+bun run validate smoke --profile core --live
+```
+
+Codexのモデル対応は `low=gpt-5.6-luna`、`mid=gpt-5.6-terra`、`high=gpt-5.6-sol` です。実行結果は `validation/.artifacts/` に保存され、Git管理しません。

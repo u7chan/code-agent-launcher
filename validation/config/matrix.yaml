@@ -1,0 +1,7 @@
+codex:
+  low:
+    expected_model: gpt-5.6-luna
+  mid:
+    expected_model: gpt-5.6-terra
+  high:
+    expected_model: gpt-5.6-sol

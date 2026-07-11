@@ -6,11 +6,12 @@ import { findExecutable } from './command.js'
 import {
   type Config,
   ConfigError,
+  getAgent,
   loadConfig,
-  resolveConfigPath,
   type MultiplexerAdapter,
+  resolveConfigPath,
 } from './config.js'
-import { collectAllFullModelIds, collectAllModels, normalizeModelId } from './model.js'
+import { collectAllFullModelIds, collectAllModels, normalizeAgentModelId } from './model.js'
 
 export type CheckStatus = 'OK' | 'WARN' | 'ERROR'
 
@@ -87,7 +88,10 @@ export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
       results.push(error(`level "${levelName}" default_model is not defined`))
     }
 
-    const normalizedDefault = normalizeModelId(level.default_model, config.provider)
+    const normalizedDefault = normalizeAgentModelId(
+      level.default_model,
+      getAgent(config, config.default_agent ?? 'opencode-go'),
+    )
     if (level.models.includes(level.default_model)) {
       results.push(ok(`level "${levelName}" default_model is in models: ${level.default_model}`))
     } else {
@@ -103,7 +107,10 @@ export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
   try {
     const allModels = collectAllModels(config)
     for (const model of allModels) {
-      const normalized = normalizeModelId(model, config.provider)
+      const normalized = normalizeAgentModelId(
+        model,
+        getAgent(config, config.default_agent ?? 'opencode-go'),
+      )
       results.push(ok(`model id normalized: ${model} -> ${normalized}`))
     }
   } catch (err) {

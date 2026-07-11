@@ -1,0 +1,4 @@
+id: codex-model-routing
+agent: codex
+levels: [low, mid, high]
+prompt: prompt.md

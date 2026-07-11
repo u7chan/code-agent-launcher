@@ -118,6 +118,20 @@ describe('config v2', () => {
       rmSync(file, { force: true })
     }
   })
+
+  it('preserves model_id_prefix=false for Codex model IDs', () => {
+    const file = join(tmpdir(), `cagent-codex-v2-${process.pid}.yaml`)
+    writeFileSync(
+      file,
+      `version: 2\ndefault_agent: codex\ndefault_level: low\nagents:\n  codex:\n    bin: codex\n    provider: codex\n    model_id_prefix: false\n    levels:\n      low:\n        description: Simple\n        default_model: gpt-5.6-luna\n        models: [gpt-5.6-luna]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+    )
+    try {
+      expect(loadConfig(file).agents?.codex.model_id_prefix).toBe(false)
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
   it('uses CAGENT_CONFIG', () => {
     const primary = join(tmpdir(), `cagent-primary-${process.pid}.yaml`)
     const yaml = (bin: string) =>
