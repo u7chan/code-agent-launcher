@@ -9,6 +9,13 @@ export interface HerdrContext {
   dryRun: boolean
 }
 
+export interface HerdrStepRecord {
+  step: 'current' | 'split' | 'run' | 'close'
+  status: 'pass' | 'fail'
+  pane_id?: string
+  error?: string
+}
+
 export class HerdrAdapterError extends Error {
   constructor(message: string) {
     super(message)
@@ -16,7 +23,7 @@ export class HerdrAdapterError extends Error {
   }
 }
 
-function checkHerdrBin(): void {
+export function checkHerdrBin(): void {
   const result = spawnSync('sh', ['-c', 'command -v herdr'], {
     shell: false,
     stdio: 'pipe',
@@ -27,7 +34,7 @@ function checkHerdrBin(): void {
   }
 }
 
-function runHerdr(args: string[]): {
+export function runHerdr(args: string[]): {
   stdout: string
   stderr: string
   status: number | null
@@ -39,7 +46,7 @@ function runHerdr(args: string[]): {
   })
 }
 
-function parsePaneId(stdout: string): string {
+export function parsePaneId(stdout: string): string {
   const text = stdout.trim()
   if (!text) {
     throw new HerdrAdapterError('herdr returned empty output')
@@ -61,7 +68,7 @@ function parsePaneId(stdout: string): string {
   throw new HerdrAdapterError(`could not parse pane id from herdr output: ${text}`)
 }
 
-function getCurrentPane(): string {
+export function getCurrentPane(): string {
   const result = runHerdr(['pane', 'current', '--current'])
   if (result.status !== 0) {
     throw new HerdrAdapterError(
@@ -71,7 +78,7 @@ function getCurrentPane(): string {
   return parsePaneId(result.stdout)
 }
 
-function splitPane(currentPane: string, cwd: string): string {
+export function splitPane(currentPane: string, cwd: string): string {
   const result = runHerdr([
     'pane',
     'split',
@@ -90,7 +97,7 @@ function splitPane(currentPane: string, cwd: string): string {
   return parsePaneId(result.stdout)
 }
 
-function quoteForHerdr(command: string): string {
+export function quoteForHerdr(command: string): string {
   return `'${command.replace(/'/g, `'\\''`)}'`
 }
 
@@ -101,11 +108,20 @@ function printDryRunSequence(cwd: string, opencodeCommand: string): void {
   console.log(`herdr pane run <new-pane> ${quoteForHerdr(opencodeCommand)}`)
 }
 
-function runInPane(pane: string, command: string): void {
+export function runInPane(pane: string, command: string): void {
   const result = runHerdr(['pane', 'run', pane, command])
   if (result.status !== 0) {
     throw new HerdrAdapterError(
       `herdr pane run failed (exit ${result.status ?? 'unknown'}): ${result.stderr.trim() || result.stdout.trim()}`,
+    )
+  }
+}
+
+export function closePane(pane: string): void {
+  const result = runHerdr(['pane', 'close', pane])
+  if (result.status !== 0) {
+    throw new HerdrAdapterError(
+      `herdr pane close failed (exit ${result.status ?? 'unknown'}): ${result.stderr.trim() || result.stdout.trim()}`,
     )
   }
 }

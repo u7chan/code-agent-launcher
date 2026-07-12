@@ -13,6 +13,16 @@ import {
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import YAML from 'yaml'
+import { getAgentAdapter } from '../src/agents/registry.js'
+import { formatCommandSpec } from '../src/command.js'
+import {
+  checkHerdrBin,
+  closePane,
+  getCurrentPane,
+  type HerdrStepRecord,
+  runInPane,
+  splitPane,
+} from '../src/mux/herdr.js'
 
 type AgentLevelEntry = { expected_model: string }
 type AgentMatrix = Record<string, AgentLevelEntry>
@@ -59,6 +69,26 @@ export type ManualAttestationResult = {
   status: Status | 'not_provided'
   attestation?: ManualAttestation
   diagnostic?: string
+}
+
+type LiveAuthorization = {
+  liveFlag: boolean
+  sideEffectConfirmation: boolean
+}
+
+type HerdrLiveSummary = {
+  authorized: boolean
+  diagnostic?: string
+  plan?: {
+    pane_count: number
+    agent: string
+    level: string
+    expected_model: string
+    command_summary: string
+    cleanup_policy: 'keep' | 'close'
+  }
+  steps: HerdrStepRecord[]
+  created_panes: string[]
 }
 
 const root = resolve(import.meta.dir, '..')
@@ -528,6 +558,127 @@ function smokeCore(args: string[], reportDir: string): number {
   return passed ? 0 : 1
 }
 
+function resolveLiveAuthorization(args: string[]): LiveAuthorization {
+  return {
+    liveFlag: args.includes('--live'),
+    sideEffectConfirmation: args.includes('--confirm-herdr-side-effects'),
+  }
+}
+
+function runHerdrLive(
+  agent: string,
+  level: string,
+  prompt: string,
+  expectedModel: string,
+  cleanup: boolean,
+): HerdrLiveSummary {
+  const steps: HerdrStepRecord[] = []
+  const createdPanes: string[] = []
+  const cwd = process.cwd()
+
+  const adapter = getAgentAdapter(agent)
+  const commandSpec = adapter.buildRunCommand({
+    bin: adapter.defaultBin,
+    modelId: expectedModel,
+    level,
+    cwd,
+    extraArgs: [prompt],
+    config: { bin: adapter.defaultBin, levels: {} },
+  })
+  const formattedCommand = formatCommandSpec(commandSpec)
+  const commandSummary =
+    formattedCommand.length > 100 ? `${formattedCommand.slice(0, 100)}...` : formattedCommand
+
+  const plan = {
+    pane_count: 1,
+    agent,
+    level,
+    expected_model: expectedModel,
+    command_summary: commandSummary,
+    cleanup_policy: (cleanup ? 'close' : 'keep') as 'keep' | 'close',
+  }
+
+  console.log('## Herdr live plan')
+  console.log(`- Agent: ${agent}`)
+  console.log(`- Level: ${level}`)
+  console.log(`- Expected model: ${expectedModel}`)
+  console.log(`- Planned panes: ${plan.pane_count}`)
+  console.log(`- Command: ${commandSummary}`)
+  console.log(`- Cleanup policy: ${plan.cleanup_policy}`)
+
+  let currentPane: string
+  try {
+    checkHerdrBin()
+    currentPane = getCurrentPane()
+    steps.push({ step: 'current', status: 'pass', pane_id: currentPane })
+  } catch (error) {
+    steps.push({
+      step: 'current',
+      status: 'fail',
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return { authorized: true, plan, steps, created_panes: createdPanes }
+  }
+
+  let newPane: string
+  try {
+    newPane = splitPane(currentPane, cwd)
+    createdPanes.push(newPane)
+    steps.push({ step: 'split', status: 'pass', pane_id: newPane })
+  } catch (error) {
+    steps.push({
+      step: 'split',
+      status: 'fail',
+      error: error instanceof Error ? error.message : String(error),
+    })
+    if (createdPanes.length > 0) {
+      tryCleanup(createdPanes, steps)
+    }
+    return { authorized: true, plan, steps, created_panes: createdPanes }
+  }
+
+  try {
+    runInPane(newPane, formattedCommand)
+    steps.push({ step: 'run', status: 'pass', pane_id: newPane })
+  } catch (error) {
+    steps.push({
+      step: 'run',
+      status: 'fail',
+      pane_id: newPane,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+
+  if (cleanup) {
+    tryCleanup(createdPanes, steps)
+  } else {
+    console.log(`Keeping pane(s): ${createdPanes.join(', ')}`)
+  }
+
+  return { authorized: true, plan, steps, created_panes: createdPanes }
+}
+
+function tryCleanup(createdPanes: string[], steps: HerdrStepRecord[]): void {
+  const remaining = [...createdPanes]
+  for (const pane of createdPanes) {
+    try {
+      closePane(pane)
+      steps.push({ step: 'close', status: 'pass', pane_id: pane })
+      remaining.splice(remaining.indexOf(pane), 1)
+    } catch (error) {
+      steps.push({
+        step: 'close',
+        status: 'fail',
+        pane_id: pane,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+  if (remaining.length > 0) {
+    console.log(`Failed to close pane(s), IDs retained: ${remaining.join(', ')}`)
+  }
+}
+
 function smokeExtended(args: string[], reportDir: string): number {
   const agent = option(args, '--agent') ?? 'codex'
   const level = option(args, '--level') ?? 'mid'
@@ -539,12 +690,15 @@ function smokeExtended(args: string[], reportDir: string): number {
   const cli = buildAndCheckCli()
   const prompt = readFileSync(promptPath, 'utf8').trim()
   const env = { ...process.env, CAGENT_CONFIG: configPath }
+
   const doctor =
     cli.status === 'pass'
       ? run('node', [builtEntryPoint, 'doctor'], root, env)
       : { status: 1, stdout: '', stderr: cli.diagnostic ?? 'build failed' }
+
   const models =
     cli.status === 'pass' ? run('node', [builtEntryPoint, 'models'], root, env) : doctor
+
   const muxDryRun =
     cli.status === 'pass'
       ? run(
@@ -554,60 +708,163 @@ function smokeExtended(args: string[], reportDir: string): number {
           env,
         )
       : doctor
-  const muxLaunch =
-    cli.status === 'pass'
-      ? run(
-          'node',
-          [builtEntryPoint, 'mux', 'run', '--agent', agent, level, '--', prompt],
-          root,
-          env,
-        )
-      : doctor
+
   const routing: Status =
     muxDryRun.status === 0 && assertDryRunModel(muxDryRun.stdout, expectedModel, agent)
       ? 'pass'
       : 'fail'
+
   const attestation = validateManualAttestation(option(args, '--attestation'), expectedModel)
+
+  const auth = resolveLiveAuthorization(args)
+  const liveEnabled = auth.liveFlag && auth.sideEffectConfirmation
+
+  if (auth.liveFlag !== auth.sideEffectConfirmation) {
+    const diagnostic = auth.liveFlag
+      ? '--confirm-herdr-side-effects is required alongside --live to launch real Herdr panes.'
+      : '--live is required alongside --confirm-herdr-side-effects to launch real Herdr panes.'
+
+    const checkStatus = {
+      cli: cli.status,
+      doctor: doctor.status === 0 ? ('pass' as Status) : ('fail' as Status),
+      models: models.status === 0 ? ('pass' as Status) : ('fail' as Status),
+      mux_routing: routing,
+    }
+
+    const manifest = {
+      ...reportBase('extended', false),
+      expected_model: expectedModel,
+      live_authorization: {
+        live_flag: auth.liveFlag,
+        side_effect_confirmation: auth.sideEffectConfirmation,
+      },
+    }
+
+    writeReport(
+      reportDir,
+      manifest,
+      {
+        automatic_routing: { agent, level, expected_model: expectedModel, status: routing },
+        environment_checks: checkStatus,
+        manual_attestation: attestation,
+        backend_attestation: 'unobservable',
+        herdr_live: {
+          authorized: false,
+          diagnostic,
+        },
+      },
+      [
+        '# Herdr extended smoke report',
+        '',
+        `- Status: **fail**`,
+        '- Profile: extended',
+        `- Expected model: ${expectedModel}`,
+        `- Automatic routing: ${routing}`,
+        `- Doctor: ${checkStatus.doctor}`,
+        `- Models: ${checkStatus.models}`,
+        '- Herdr live: **not authorized**',
+        `- Live diagnostic: ${diagnostic}`,
+        `- Manual attestation: ${attestation.status}`,
+        '- Backend attestation: unobservable',
+        ...(attestation.diagnostic
+          ? [`- Manual attestation diagnostic: ${attestation.diagnostic}`]
+          : []),
+        '',
+        'Automatic routing, human Herdr-pane attestation, and provider-side backend attestation are separate evidence sources.',
+      ],
+    )
+    console.error(diagnostic)
+    return 1
+  }
+
+  let herdrSummary: HerdrLiveSummary | undefined
+
+  if (liveEnabled) {
+    const cleanup = args.includes('--cleanup-created-panes')
+    herdrSummary = runHerdrLive(agent, level, prompt, expectedModel, cleanup)
+  }
+
   const checks = {
     cli,
-    doctor: doctor.status === 0 ? 'pass' : 'fail',
-    models: models.status === 0 ? 'pass' : 'fail',
+    doctor: doctor.status === 0 ? ('pass' as Status) : ('fail' as Status),
+    models: models.status === 0 ? ('pass' as Status) : ('fail' as Status),
     mux_routing: routing,
-    herdr_launch: muxLaunch.status === 0 ? 'pass' : 'fail',
   }
+
+  const herdrStepsAllPass = herdrSummary
+    ? herdrSummary.steps.every((s) => s.status === 'pass')
+    : true
+
   const passed =
-    Object.values(checks).every(
-      (value) => value === 'pass' || (typeof value === 'object' && value.status === 'pass'),
-    ) && attestation.status === 'pass'
-  const manifest = { ...reportBase('extended', false), expected_model: expectedModel }
-  writeReport(
-    reportDir,
-    manifest,
-    {
-      automatic_routing: { agent, level, expected_model: expectedModel, status: routing },
-      environment_checks: checks,
-      manual_attestation: attestation,
-      backend_attestation: 'unobservable',
+    cli.status === 'pass' &&
+    checks.doctor === 'pass' &&
+    checks.models === 'pass' &&
+    checks.mux_routing === 'pass' &&
+    attestation.status === 'pass' &&
+    herdrStepsAllPass
+
+  const manifest = {
+    ...reportBase('extended', liveEnabled),
+    expected_model: expectedModel,
+    live_authorization: {
+      live_flag: auth.liveFlag,
+      side_effect_confirmation: auth.sideEffectConfirmation,
     },
-    [
-      '# Herdr extended smoke report',
-      '',
-      `- Status: **${passed ? 'pass' : 'fail'}**`,
-      '- Profile: extended',
-      `- Expected model: ${expectedModel}`,
-      `- Automatic routing: ${routing}`,
-      `- Doctor: ${checks.doctor}`,
-      `- Models: ${checks.models}`,
-      `- Herdr launch: ${checks.herdr_launch}`,
-      `- Manual attestation: ${attestation.status}`,
-      '- Backend attestation: unobservable',
-      ...(attestation.diagnostic
-        ? [`- Manual attestation diagnostic: ${attestation.diagnostic}`]
-        : []),
-      '',
-      'Automatic routing, human Herdr-pane attestation, and provider-side backend attestation are separate evidence sources.',
-    ],
-  )
+    ...(herdrSummary
+      ? {
+          herdr_plan: herdrSummary.plan,
+          herdr_created_panes: herdrSummary.created_panes,
+        }
+      : {}),
+  }
+
+  const scoresData: Record<string, unknown> = {
+    automatic_routing: { agent, level, expected_model: expectedModel, status: routing },
+    environment_checks: checks,
+    manual_attestation: attestation,
+    backend_attestation: 'unobservable',
+  }
+
+  if (herdrSummary) {
+    scoresData.herdr_live = {
+      authorized: herdrSummary.authorized,
+      plan: herdrSummary.plan,
+      steps: herdrSummary.steps,
+      created_panes: herdrSummary.created_panes,
+    }
+  }
+
+  writeReport(reportDir, manifest, scoresData, [
+    '# Herdr extended smoke report',
+    '',
+    `- Status: **${passed ? 'pass' : 'fail'}**`,
+    '- Profile: extended',
+    `- Expected model: ${expectedModel}`,
+    `- Automatic routing: ${routing}`,
+    `- Doctor: ${checks.doctor}`,
+    `- Models: ${checks.models}`,
+    ...(herdrSummary
+      ? [
+          '- Herdr live: **executed**',
+          ...herdrSummary.steps.map(
+            (s) =>
+              `  - ${s.step} (${s.status})${s.pane_id ? ` id=${s.pane_id}` : ''}${s.error ? ` error="${s.error}"` : ''}`,
+          ),
+          ...(herdrSummary.created_panes.length > 0
+            ? [`- Created panes: ${herdrSummary.created_panes.join(', ')}`]
+            : []),
+        ]
+      : ['- Herdr live: **not requested**']),
+    `- Manual attestation: ${attestation.status}`,
+    '- Backend attestation: unobservable',
+    ...(attestation.diagnostic
+      ? [`- Manual attestation diagnostic: ${attestation.diagnostic}`]
+      : []),
+    '',
+    'Automatic routing, human Herdr-pane attestation, and provider-side backend attestation are separate evidence sources.',
+  ])
+
+  console.log(`Validation report: ${reportDir}`)
   return passed ? 0 : 1
 }
 
