@@ -526,6 +526,112 @@ exec ${process.execPath} "$@"`,
     expect(report).toContain('**not authorized**')
   })
 
+  function writeFakeHerdrWithPaneRunLogging(directory: string): void {
+    writeFake(
+      directory,
+      'herdr',
+      'case "$1 $2" in "pane current") echo "{\\"result\\":{\\"pane\\":{\\"pane_id\\":\\"current\\"}}}" ;; "pane split") echo "{\\"result\\":{\\"pane\\":{\\"pane_id\\":\\"new-pane-42\\"}}}" ;; "pane run") [ -n "$FAKE_HERDR_PANE_RUN_LOG" ] && echo "$4" >> "$FAKE_HERDR_PANE_RUN_LOG"; exit 0 ;; "pane close") exit 0 ;; *) exit 1 ;; esac',
+    )
+  }
+
+  it('pane run command for codex is built through agent adapter with exec subcommand', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrWithPaneRunLogging(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    const paneRunLog = join(directory, 'pane-run.log')
+    writeFileSync(paneRunLog, '')
+    const result = spawnSync(
+      process.execPath,
+      [
+        'validation/runner.ts',
+        'smoke',
+        '--profile',
+        'extended',
+        '--report-dir',
+        reportDir,
+        '--agent',
+        'codex',
+        '--level',
+        'mid',
+        '--attestation',
+        attestation,
+        '--live',
+        '--confirm-herdr-side-effects',
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: `${directory}:${process.env.PATH}`,
+          FAKE_HERDR_PANE_RUN_LOG: paneRunLog,
+        },
+      },
+    )
+    expect(result.status).toBe(0)
+    const loggedCommand = readFileSync(paneRunLog, 'utf8').trim()
+    expect(loggedCommand).toContain('codex exec')
+    expect(loggedCommand).toContain('--model gpt-5.6-terra')
+    expect(loggedCommand).not.toMatch(/^'/)
+  })
+
+  it('pane run command for opencode-go is built through agent adapter with run subcommand', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrWithPaneRunLogging(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: opencode-go/deepseek-v4-pro\n  observed_cli_model: opencode-go/deepseek-v4-pro\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    const paneRunLog = join(directory, 'pane-run.log')
+    writeFileSync(paneRunLog, '')
+    const result = spawnSync(
+      process.execPath,
+      [
+        'validation/runner.ts',
+        'smoke',
+        '--profile',
+        'extended',
+        '--report-dir',
+        reportDir,
+        '--agent',
+        'opencode-go',
+        '--level',
+        'mid',
+        '--attestation',
+        attestation,
+        '--live',
+        '--confirm-herdr-side-effects',
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: `${directory}:${process.env.PATH}`,
+          FAKE_HERDR_PANE_RUN_LOG: paneRunLog,
+        },
+      },
+    )
+    expect(result.status).toBe(0)
+    const loggedCommand = readFileSync(paneRunLog, 'utf8').trim()
+    expect(loggedCommand).toContain('opencode run')
+    expect(loggedCommand).toContain('--model opencode-go/deepseek-v4-pro')
+    expect(loggedCommand).not.toMatch(/^'/)
+  })
+
   it('does not affect core smoke (core does not call herdr)', () => {
     const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
     writeFakeBun(directory)

@@ -13,12 +13,13 @@ import {
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import YAML from 'yaml'
+import { getAgentAdapter } from '../src/agents/registry.js'
+import { formatCommandSpec } from '../src/command.js'
 import {
   checkHerdrBin,
   closePane,
   getCurrentPane,
   type HerdrStepRecord,
-  quoteForHerdr,
   runInPane,
   splitPane,
 } from '../src/mux/herdr.js'
@@ -574,7 +575,19 @@ function runHerdrLive(
   const steps: HerdrStepRecord[] = []
   const createdPanes: string[] = []
   const cwd = process.cwd()
-  const commandSummary = `${agent} run --model ${expectedModel} ${prompt.slice(0, 80)}...`
+
+  const adapter = getAgentAdapter(agent)
+  const commandSpec = adapter.buildRunCommand({
+    bin: adapter.defaultBin,
+    modelId: expectedModel,
+    level,
+    cwd,
+    extraArgs: [prompt],
+    config: { bin: adapter.defaultBin, levels: {} },
+  })
+  const formattedCommand = formatCommandSpec(commandSpec)
+  const commandSummary =
+    formattedCommand.length > 100 ? `${formattedCommand.slice(0, 100)}...` : formattedCommand
 
   const plan = {
     pane_count: 1,
@@ -625,8 +638,7 @@ function runHerdrLive(
   }
 
   try {
-    const fullCommand = `${agent} --model ${expectedModel} ${prompt}`
-    runInPane(newPane, quoteForHerdr(fullCommand))
+    runInPane(newPane, formattedCommand)
     steps.push({ step: 'run', status: 'pass', pane_id: newPane })
   } catch (error) {
     steps.push({
