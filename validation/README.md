@@ -31,10 +31,20 @@ bun run validate smoke --profile core --live
 
 ## Herdr extended smoke
 
-`extended` は doctor、models、Herdr 経由の起動を検証します。実 Herdr pane を確認した後、確認者が attestation YAML を作成して渡してください。これは実 CLI に渡されたモデルの人手確認であり、provider 側の実モデルIDを検証するものではありません。
+`extended` は doctor、models、mux dry-run、attestation 検証を非破壊で実行します。既定では実 Herdr を起動せず、`herdr pane split/run` を呼びません。
 
 ```bash
+# 既定：dry-run、doctor、models、attestation 検証のみ（実Herdr起動なし）
 bun run validate smoke --profile extended --attestation /absolute/path/to/attestation.yaml
+```
+
+実 Herdr の起動には、`--live` と `--confirm-herdr-side-effects` の両方が必須です。片方だけでは起動せず、失敗理由をレポートします。
+
+```bash
+# 実Herdr起動（二重承認あり）
+bun run validate smoke --profile extended \
+  --attestation /absolute/path/to/attestation.yaml \
+  --live --confirm-herdr-side-effects
 ```
 
 ```yaml
@@ -47,9 +57,21 @@ manual_attestation:
   status: pass
 ```
 
-`method`、確認者、時刻、モデル、`status: pass` は必須です。expected/observed model は対象の routing と一致する必要があります。attestation がない・不正・Herdr 未導入・Herdr 起動失敗の場合もレポートを残して失敗します。生成物、スクリーンショット、生ログは Git 管理しません。
+### 実Herdr起動の流れ
 
-extended の `scores.json` は `automatic_routing`、`manual_attestation`、`backend_attestation` を別フィールドで記録します。
+`--live --confirm-herdr-side-effects` を指定すると、以下の流れで実行します：
+
+1. 実行前に予定ペイン数、agent、level、expected model、コマンド概要、保持/cleanup方針を表示
+2. `herdr pane current` で現在ペインを検出
+3. `herdr pane split` で新ペインを作成（作成直後から pane ID を追跡）
+4. `herdr pane run` でコマンドを実行
+5. 既定ではペインを**保持**。`--cleanup-created-panes` 指定時のみ今回作成したペインを close
+
+split/run/close の各ステップの成否、JSON パースエラー、事前チェック失敗は `scores.json` の `herdr_live.steps` に構造化して記録されます。cleanup に失敗したペインは ID を保持して fail 報告し、無断で close しません。
+
+`method`、確認者、時刻、モデル、`status: pass` は必須です。expected/observed model は対象の routing と一致する必要があります。attestation がない・不正な場合もレポートを残して失敗します。生成物、スクリーンショット、生ログは Git 管理しません。
+
+extended の `scores.json` は `automatic_routing`、`manual_attestation`、`herdr_live`（live 時のみ）、`backend_attestation` を別フィールドで記録します。
 
 ## 候補モデルの最小品質評価
 

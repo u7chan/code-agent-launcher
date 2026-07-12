@@ -37,7 +37,19 @@ Treat `backend_attestation: unobservable` as an unknown state, not a successful 
 
 ## Herdr extended smoke
 
-`bun run validate smoke --profile extended --attestation <absolute-path>` は Herdr pane を起動します。実 Herdr での pane 確認を依頼または確認済みの場合だけ実行し、確認者が Issue #21 の YAML スキーマで保存した attestation の絶対パスを指定する。
+`bun run validate smoke --profile extended --attestation <absolute-path>` は既定で dry-run、doctor、models、attestation 検証のみを実行し、実 Herdr を起動しません。実 Herdr pane の起動には `--live` と `--confirm-herdr-side-effects` の両方が必須です。片方だけでは一切 split/run/close を呼ばず、失敗理由をレポートします。
+
+```bash
+# 既定：実Herdr起動なし
+bun run validate smoke --profile extended --attestation /absolute/path/to/attestation.yaml
+
+# 実Herdr起動（二重承認あり）
+bun run validate smoke --profile extended \
+  --attestation /absolute/path/to/attestation.yaml \
+  --live --confirm-herdr-side-effects
+```
+
+live 前には予定ペイン数、agent、level、expected model、コマンド概要、保持/cleanup方針を表示する。split 成功直後から作成 pane ID を追跡し、run 失敗でも ID を失わない。既定はペイン保持。`--cleanup-created-panes` 指定時のみ今回作成したペインを close し、cleanup 失敗時は ID を保持して fail 報告する。current/split/run/cleanup の各結果は `scores.json` の `herdr_live.steps` に構造化記録される。
 
 レポートでは `automatic_routing`、`manual_attestation`、`backend_attestation` を混同せずに報告する。attestation、スクリーンショット、生ログ、`validation/.artifacts/` はコミットしない。
 

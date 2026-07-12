@@ -123,7 +123,7 @@ exec ${process.execPath} "$@"`,
     )
   }
 
-  function runExtended(fakePath: string, reportDir: string, attestation?: string) {
+  function runExtended(fakePath: string, reportDir: string, extraArgs: string[] = []) {
     return spawnSync(
       process.execPath,
       [
@@ -133,7 +133,7 @@ exec ${process.execPath} "$@"`,
         'extended',
         '--report-dir',
         reportDir,
-        ...(attestation ? ['--attestation', attestation] : []),
+        ...extraArgs,
       ],
       {
         cwd: process.cwd(),
@@ -146,7 +146,153 @@ exec ${process.execPath} "$@"`,
     )
   }
 
-  it('records a passing fake Herdr launch and valid human attestation', () => {
+  function writeFakeHerdrPassing(directory: string): void {
+    writeFake(
+      directory,
+      'herdr',
+      'case "$1 $2" in "pane current") echo "{\\"result\\":{\\"pane\\":{\\"pane_id\\":\\"current\\"}}}" ;; "pane split") echo "{\\"result\\":{\\"pane\\":{\\"pane_id\\":\\"new-pane-42\\"}}}" ;; "pane run") exit 0 ;; "pane close") exit 0 ;; *) exit 1 ;; esac',
+    )
+  }
+
+  it('default extended smoke does not call herdr pane split/run', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrPassing(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    expect(runExtended(directory, reportDir, ['--attestation', attestation]).status).toBe(0)
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).not.toContain('"herdr_live"')
+    expect(scores).toContain('"automatic_routing"')
+    expect(scores).toContain('"manual_attestation"')
+  })
+
+  it('default extended smoke passes without attestation when dry-run checks succeed', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrPassing(directory)
+    const reportDir = join(directory, 'report')
+    expect(runExtended(directory, reportDir).status).toBe(1)
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).toContain('"manual_attestation"')
+    expect(scores).toContain('"not_provided"')
+  })
+
+  it('--live alone does not launch herdr and fails with diagnostic', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrPassing(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    const result = runExtended(directory, reportDir, ['--attestation', attestation, '--live'])
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('--confirm-herdr-side-effects')
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).toContain('"authorized": false')
+    expect(scores).toContain('"herdr_live"')
+    expect(scores).not.toContain('"current"')
+    expect(scores).not.toContain('"split"')
+  })
+
+  it('--confirm-herdr-side-effects alone does not launch herdr and fails with diagnostic', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrPassing(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    const result = runExtended(directory, reportDir, [
+      '--attestation',
+      attestation,
+      '--confirm-herdr-side-effects',
+    ])
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('--live')
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).toContain('"authorized": false')
+  })
+
+  it('--live --confirm-herdr-side-effects launches herdr with step tracking and keeps panes by default', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrPassing(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    const result = runExtended(directory, reportDir, [
+      '--attestation',
+      attestation,
+      '--live',
+      '--confirm-herdr-side-effects',
+    ])
+    expect(result.status).toBe(0)
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).toContain('"herdr_live"')
+    expect(scores).toContain('"authorized": true')
+    expect(scores).toContain('"current"')
+    expect(scores).toContain('"split"')
+    expect(scores).toContain('"run"')
+    expect(scores).toContain('"pass"')
+    expect(scores).toContain('"new-pane-42"')
+    expect(scores).toContain('"created_panes"')
+    expect(scores).not.toContain('"close"')
+    expect(result.stdout).toContain('Herdr live plan')
+    expect(result.stdout).toContain('Expected model: gpt-5.6-terra')
+    expect(result.stdout).toContain('Cleanup policy: keep')
+  })
+
+  it('--cleanup-created-panes closes panes after live herdr', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrPassing(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    const result = runExtended(directory, reportDir, [
+      '--attestation',
+      attestation,
+      '--live',
+      '--confirm-herdr-side-effects',
+      '--cleanup-created-panes',
+    ])
+    expect(result.status).toBe(0)
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).toContain('"close"')
+    expect(scores).toContain('"pass"')
+    expect(scores).toContain('"new-pane-42"')
+    expect(result.stdout).toContain('Cleanup policy: close')
+  })
+
+  it('reports split failure and does not lose created pane ids', () => {
     const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
     writeFakeBun(directory)
     writeFake(directory, 'codex', 'echo codex 1.0')
@@ -154,7 +300,7 @@ exec ${process.execPath} "$@"`,
     writeFake(
       directory,
       'herdr',
-      'case "$1 $2" in "pane current") echo "{\\"result\\":{\\"pane\\":{\\"pane_id\\":\\"current\\"}}}" ;; "pane split") echo "{\\"result\\":{\\"pane\\":{\\"pane_id\\":\\"new\\"}}}" ;; "pane run") exit 0 ;; *) exit 1 ;; esac',
+      'case "$1 $2" in "pane current") echo "{\\"result\\":{\\"pane\\":{\\"pane_id\\":\\"current\\"}}}" ;; "pane split") echo split failure >&2; exit 4 ;; *) exit 0 ;; esac',
     )
     const attestation = join(directory, 'attestation.yaml')
     writeFileSync(
@@ -162,23 +308,248 @@ exec ${process.execPath} "$@"`,
       'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
     )
     const reportDir = join(directory, 'report')
-    expect(runExtended(directory, reportDir, attestation).status).toBe(0)
-    expect(readFileSync(join(reportDir, 'scores.json'), 'utf8')).toContain('"manual_attestation"')
+    const result = runExtended(directory, reportDir, [
+      '--attestation',
+      attestation,
+      '--live',
+      '--confirm-herdr-side-effects',
+    ])
+    expect(result.status).toBe(1)
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).toContain('"current"')
+    expect(scores).toContain('"pass"')
+    expect(scores).toContain('"split"')
+    expect(scores).toContain('"fail"')
+    expect(scores).not.toContain('"run"')
+    expect(scores).toContain('exit 4')
   })
 
-  it('fails deterministically when Herdr is unavailable or returns an error', () => {
+  it('reports run failure on valid split and tracks failed pane', () => {
     const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
     writeFakeBun(directory)
     writeFake(directory, 'codex', 'echo codex 1.0')
     writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
-    const absentReport = join(directory, 'absent-report')
-    expect(runExtended(directory, absentReport).status).toBe(1)
-    writeFake(directory, 'herdr', 'echo launch failed >&2; exit 9')
-    const failedReport = join(directory, 'failed-report')
-    expect(runExtended(directory, failedReport).status).toBe(1)
-    expect(readFileSync(join(failedReport, 'scores.json'), 'utf8')).toContain(
-      '"herdr_launch": "fail"',
+    writeFake(
+      directory,
+      'herdr',
+      'case "$1 $2" in "pane current") echo "{\\"result\\":{\\"pane\\":{\\"pane_id\\":\\"current\\"}}}" ;; "pane split") echo "{\\"result\\":{\\"pane\\":{\\"pane_id\\":\\"new-pane-42\\"}}}" ;; "pane run") echo run failure >&2; exit 3 ;; *) exit 0 ;; esac',
     )
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    const result = runExtended(directory, reportDir, [
+      '--attestation',
+      attestation,
+      '--live',
+      '--confirm-herdr-side-effects',
+    ])
+    expect(result.status).toBe(1)
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).toContain('"split"')
+    expect(scores).toContain('"pass"')
+    expect(scores).toContain('"run"')
+    expect(scores).toContain('"fail"')
+    expect(scores).toContain('"created_panes": [')
+    expect(scores).toContain('"new-pane-42"')
+    expect(scores).toContain('exit 3')
+  })
+
+  it('records cleanup failure and keeps pane ids in report', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFake(
+      directory,
+      'herdr',
+      'case "$1 $2" in "pane current") echo "{\\"result\\":{\\"pane\\":{\\"pane_id\\":\\"current\\"}}}" ;; "pane split") echo "{\\"result\\":{\\"pane\\":{\\"pane_id\\":\\"new-pane-42\\"}}}" ;; "pane run") exit 0 ;; "pane close") echo close failure >&2; exit 5 ;; *) exit 1 ;; esac',
+    )
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    const result = runExtended(directory, reportDir, [
+      '--attestation',
+      attestation,
+      '--live',
+      '--confirm-herdr-side-effects',
+      '--cleanup-created-panes',
+    ])
+    expect(result.status).toBe(1)
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).toContain('"close"')
+    expect(scores).toContain('"fail"')
+    expect(scores).toContain('exit 5')
+    expect(scores).toContain('"new-pane-42"')
+    expect(result.stdout).toContain('Failed to close pane')
+  })
+
+  it('reports current pane detection failure', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFake(
+      directory,
+      'herdr',
+      'case "$1 $2" in "pane current") echo not a pane >&2; exit 2 ;; *) exit 0 ;; esac',
+    )
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    const result = runExtended(directory, reportDir, [
+      '--attestation',
+      attestation,
+      '--live',
+      '--confirm-herdr-side-effects',
+    ])
+    expect(result.status).toBe(1)
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).toContain('"current"')
+    expect(scores).toContain('"fail"')
+    expect(scores).toContain('exit 2')
+    expect(scores).not.toContain('"split"')
+  })
+
+  it('live herdr manifest includes authorization flags', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrPassing(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    expect(
+      runExtended(directory, reportDir, [
+        '--attestation',
+        attestation,
+        '--live',
+        '--confirm-herdr-side-effects',
+      ]).status,
+    ).toBe(0)
+    const manifest = readFileSync(join(reportDir, 'manifest.yaml'), 'utf8')
+    expect(manifest).toContain('live_authorization')
+    expect(manifest).toContain('live_flag: true')
+    expect(manifest).toContain('side_effect_confirmation: true')
+    expect(manifest).toContain('herdr_plan')
+    expect(manifest).toContain('herdr_created_panes')
+    expect(manifest).toContain('new-pane-42')
+  })
+
+  it('default extended smoke manifest includes live_authorization with false flags', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrPassing(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    expect(runExtended(directory, reportDir, ['--attestation', attestation]).status).toBe(0)
+    const manifest = readFileSync(join(reportDir, 'manifest.yaml'), 'utf8')
+    expect(manifest).toContain('live_flag: false')
+    expect(manifest).toContain('side_effect_confirmation: false')
+  })
+
+  it('report.md contains herdr live step details when live is authorized', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrPassing(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    expect(
+      runExtended(directory, reportDir, [
+        '--attestation',
+        attestation,
+        '--live',
+        '--confirm-herdr-side-effects',
+      ]).status,
+    ).toBe(0)
+    const report = readFileSync(join(reportDir, 'report.md'), 'utf8')
+    expect(report).toContain('- Herdr live: **executed**')
+    expect(report).toContain('current (pass)')
+    expect(report).toContain('split (pass)')
+    expect(report).toContain('run (pass)')
+    expect(report).toContain('id=new-pane-42')
+    expect(report).toContain('Created panes: new-pane-42')
+  })
+
+  it('report.md shows not requested when no live flags', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrPassing(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    expect(runExtended(directory, reportDir, ['--attestation', attestation]).status).toBe(0)
+    const report = readFileSync(join(reportDir, 'report.md'), 'utf8')
+    expect(report).toContain('- Herdr live: **not requested**')
+    expect(report).not.toContain('current')
+  })
+
+  it('report.md shows not authorized with diagnostic on single flag', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrPassing(directory)
+    const reportDir = join(directory, 'report')
+    const result = runExtended(directory, reportDir, ['--live'])
+    expect(result.status).toBe(1)
+    const report = readFileSync(join(reportDir, 'report.md'), 'utf8')
+    expect(report).toContain('**not authorized**')
+  })
+
+  it('does not affect core smoke (core does not call herdr)', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFake(directory, 'herdr', 'echo SHOULD NOT BE CALLED >&2; exit 99')
+    const reportDir = join(directory, 'core-report')
+    const result = spawnSync(
+      process.execPath,
+      ['validation/runner.ts', 'smoke', '--profile', 'core', '--report-dir', reportDir],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: `${directory}:${process.env.PATH}`,
+        },
+      },
+    )
+    expect(result.status).toBe(0)
+    expect(result.stderr).not.toContain('SHOULD NOT BE CALLED')
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).toContain('"routing"')
+    expect(scores).not.toContain('herdr')
   })
 })
 
