@@ -6,6 +6,8 @@ export interface ResolveOptions {
   cliLevel?: string
   envModel?: string
   envLevel?: string
+  cliEffort?: string
+  envEffort?: string
 }
 
 function agentConfig(config: Config, agent?: string) {
@@ -197,7 +199,7 @@ function levenshteinDistance(a: string, b: string): number {
 export function resolveModel(
   config: Config,
   options: ResolveOptions,
-): { modelId: string; levelName?: string; warnings: string[] } {
+): { modelId: string; levelName?: string; warnings: string[]; effort?: string } {
   const warnings: string[] = []
   const selected = agentConfig(config, options.agent)
 
@@ -209,8 +211,6 @@ export function resolveModel(
 
   if (hasExplicitModel) {
     rawModel = options.cliModel ?? options.envModel
-    // An explicit model must not fail on an unrelated environment level.
-    // CLI-specified level is still validated.
     if (options.cliLevel !== undefined) {
       getLevel(config, options.cliLevel, options.agent)
     }
@@ -240,5 +240,40 @@ export function resolveModel(
     }
   }
 
-  return { modelId, levelName: effectiveLevel, warnings }
+  let effort: string | undefined
+
+  if (options.cliEffort !== undefined) {
+    if (options.cliEffort === '') {
+      throw new ModelError('--effort must not be empty')
+    }
+    effort = options.cliEffort
+  } else if (options.envEffort !== undefined && options.envEffort !== '') {
+    effort = options.envEffort
+  } else {
+    let effortLevel: string | undefined
+
+    if (hasExplicitModel) {
+      if (options.cliLevel !== undefined) {
+        effortLevel = options.cliLevel
+      } else if (options.envLevel !== undefined) {
+        try {
+          getLevel(config, options.envLevel, options.agent)
+          effortLevel = options.envLevel
+        } catch {
+          // envLevel is invalid — skip level effort
+        }
+      }
+    } else {
+      effortLevel = effectiveLevel ?? config.default_level
+    }
+
+    if (effortLevel) {
+      const level = getLevel(config, effortLevel, options.agent)
+      if (level.effort) {
+        effort = level.effort
+      }
+    }
+  }
+
+  return { modelId, levelName: effectiveLevel, warnings, effort }
 }

@@ -6,6 +6,10 @@
 
 - `low` / `mid` / `high` のタスクレベルに応じてデフォルトモデルを解決
 - ユーザーが `--model` を明示した場合はそれを最優先
+- 推論 effort（reasoning effort）を `--effort` / `CAGENT_EFFORT` / レベル設定で制御
+  - Codex: `-c model_reasoning_effort=<TOML文字列>` として渡す
+  - OpenCode Go (run): `--variant` として渡す
+  - OpenCode Go (対話): 未対応のため effort 解決時に fail-fast
 - 非対話実行用の `run` コマンド
 - Herdr 連携用の `mux` コマンド
 - 設定と環境の検証用 `doctor` コマンド
@@ -21,6 +25,10 @@ cagent run high -- "この認証設計のリスクと代替案をレビューし
 # 明示モデル指定
 cagent run --agent opencode-go --model qwen3.7-max -- "DBマイグレーション計画をレビューして"
 
+# 推論 effort 指定
+cagent run --effort high -- "難易度の高いコードレビューをして"
+cagent run --effort high low -- "低レベルタスクだけど effort 高めで"
+
 # Herdr 経由で永続セッションを立てる
 cagent mux start high
 
@@ -33,7 +41,7 @@ cagent doctor
 
 ## エージェント向けルール
 
-設定ファイルは `~/.config/cagent/config.yaml` です。環境変数には `CAGENT_CONFIG` / `CAGENT_AGENT` / `CAGENT_MODEL` / `CAGENT_LEVEL` を使用します。
+設定ファイルは `~/.config/cagent/config.yaml` です。環境変数には `CAGENT_CONFIG` / `CAGENT_AGENT` / `CAGENT_MODEL` / `CAGENT_LEVEL` / `CAGENT_EFFORT` を使用します。
 
 ## ローカル検証
 

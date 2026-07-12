@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { getAgentAdapter } from '../agents/registry.js'
+import type { CommandSpec } from '../agents/types.js'
 import {
   type Config,
   configPath,
@@ -13,6 +14,7 @@ import { executeTmuxRun, executeTmuxStart } from './tmux.js'
 
 export interface MuxGlobalOptions {
   model?: string
+  effort?: string
   adapter?: string
   dryRun?: boolean
   agent?: string
@@ -37,44 +39,66 @@ export function validateMuxAdapter(config: Config, adapterName: string): Multipl
   return adapter as MultiplexerAdapter
 }
 
-async function dispatchMux(mode: 'start' | 'run', level: string, command: Command): Promise<void> {
-  const muxOpts = command.optsWithGlobals() as MuxGlobalOptions
-  const config = loadConfig()
+export function resolveMuxCommand(
+  config: Config,
+  mode: 'start' | 'run',
+  level: string,
+  muxOpts: MuxGlobalOptions,
+  extraArgs: string[],
+): { adapterName: string; commandSpec: CommandSpec } {
   const adapterName = muxOpts.adapter ?? config.multiplexer.default
 
   validateMuxAdapter(config, adapterName)
 
+  const agentId = muxOpts.agent ?? process.env.CAGENT_AGENT ?? config.default_agent ?? 'opencode-go'
   const resolved = resolveModel(config, {
     cliModel: muxOpts.model,
     cliLevel: level,
-    agent: muxOpts.agent ?? process.env.CAGENT_AGENT ?? config.default_agent ?? 'opencode-go',
+    cliEffort: muxOpts.effort,
+    agent: agentId,
     envModel: process.env.CAGENT_MODEL,
     envLevel: process.env.CAGENT_LEVEL,
+    envEffort: process.env.CAGENT_EFFORT,
   })
 
   for (const warning of resolved.warnings) {
     console.warn(`Warning: ${warning}`)
   }
 
-  const extraArgs = command.args.slice(1)
-  const cwd = process.cwd()
-  const dryRun = muxOpts.dryRun === true
+  if (mode === 'start' && agentId === 'opencode-go' && resolved.effort) {
+    throw new MuxAdapterError(
+      'OpenCode interactive mode does not support reasoning effort. Use `cagent run` with --effort instead.',
+    )
+  }
 
-  const agentId = muxOpts.agent ?? process.env.CAGENT_AGENT ?? config.default_agent ?? 'opencode-go'
   const agent = getAgent(config, agentId)
   const codingAdapter = getAgentAdapter(agentId)
   const context = {
     bin: agent.bin,
     modelId: resolved.modelId,
     level,
-    cwd,
+    cwd: process.cwd(),
     extraArgs,
     config: agent,
+    effort: resolved.effort,
   }
   const commandSpec =
     mode === 'start'
       ? (codingAdapter.buildStartCommand?.(context) ?? codingAdapter.buildRunCommand(context))
       : codingAdapter.buildRunCommand(context)
+
+  return { adapterName, commandSpec }
+}
+
+async function dispatchMux(mode: 'start' | 'run', level: string, command: Command): Promise<void> {
+  const muxOpts = command.optsWithGlobals() as MuxGlobalOptions
+  const config = loadConfig()
+  const extraArgs = command.args.slice(1)
+
+  const { adapterName, commandSpec } = resolveMuxCommand(config, mode, level, muxOpts, extraArgs)
+
+  const cwd = process.cwd()
+  const dryRun = muxOpts.dryRun === true
 
   if (adapterName === 'herdr') {
     const ctx = {

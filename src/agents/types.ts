@@ -11,6 +11,7 @@ export interface BuildAgentCommandContext {
   cwd: string
   extraArgs: string[]
   config: AgentConfig
+  effort?: string
 }
 export interface CodingAgentAdapter {
   id: string

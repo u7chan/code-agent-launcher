@@ -105,6 +105,88 @@ describe('configPath', () => {
   })
 })
 
+describe('level effort validation', () => {
+  it('accepts a valid effort string', () => {
+    const file = join(tmpdir(), `cagent-effort-valid-${process.pid}.yaml`)
+    writeFileSync(
+      file,
+      `version: 2\ndefault_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: high\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+    )
+    try {
+      const config = loadConfig(file)
+      expect(config.levels.mid.effort).toBe('high')
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('accepts undefined effort (no key)', () => {
+    const file = join(tmpdir(), `cagent-effort-none-${process.pid}.yaml`)
+    writeFileSync(
+      file,
+      `version: 2\ndefault_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+    )
+    try {
+      const config = loadConfig(file)
+      expect(config.levels.mid.effort).toBeUndefined()
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects empty string effort', () => {
+    const file = join(tmpdir(), `cagent-effort-empty-${process.pid}.yaml`)
+    writeFileSync(
+      file,
+      `version: 2\ndefault_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: ""\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+    )
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects numeric effort', () => {
+    const file = join(tmpdir(), `cagent-effort-num-${process.pid}.yaml`)
+    writeFileSync(
+      file,
+      `version: 2\ndefault_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: 42\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+    )
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects boolean effort', () => {
+    const file = join(tmpdir(), `cagent-effort-bool-${process.pid}.yaml`)
+    writeFileSync(
+      file,
+      `version: 2\ndefault_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: true\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+    )
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects null effort', () => {
+    const file = join(tmpdir(), `cagent-effort-null-${process.pid}.yaml`)
+    writeFileSync(
+      file,
+      `version: 2\ndefault_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: null\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+    )
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+})
+
 describe('config v2', () => {
   it('loads an agent-specific v2 config', () => {
     const file = join(tmpdir(), `cagent-v2-${process.pid}.yaml`)

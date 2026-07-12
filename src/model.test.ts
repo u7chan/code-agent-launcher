@@ -218,6 +218,115 @@ describe('resolveModel', () => {
       'gpt-5.6-luna',
     )
   })
+
+  // --- effort resolution ---
+  function makeEffortConfig(): Config {
+    return {
+      version: 1,
+      opencode_bin: 'opencode',
+      provider: 'opencode-go',
+      default_level: 'mid',
+      levels: {
+        low: {
+          description: 'Cheap',
+          default_model: 'deepseek-v4-flash',
+          models: ['deepseek-v4-flash'],
+          effort: 'low-effort',
+        },
+        mid: {
+          description: 'Normal',
+          default_model: 'deepseek-v4-pro',
+          models: ['deepseek-v4-pro'],
+          effort: 'medium-effort',
+        },
+        high: {
+          description: 'Complex',
+          default_model: 'kimi-k2.7-code',
+          models: ['kimi-k2.7-code'],
+          effort: 'high-effort',
+        },
+      },
+      multiplexer: {
+        default: 'herdr',
+        herdr: { enabled: true },
+      },
+    }
+  }
+
+  it('resolves CLI --effort as highest priority', () => {
+    const result = resolveModel(makeEffortConfig(), {
+      cliLevel: 'low',
+      cliEffort: 'cli-effort',
+      envEffort: 'env-effort',
+    })
+    expect(result.effort).toBe('cli-effort')
+  })
+
+  it('rejects empty CLI --effort', () => {
+    expect(() =>
+      resolveModel(makeEffortConfig(), {
+        cliLevel: 'low',
+        cliEffort: '',
+      }),
+    ).toThrow('--effort must not be empty')
+  })
+
+  it('uses CAGENT_EFFORT when CLI effort is not set', () => {
+    const result = resolveModel(makeEffortConfig(), {
+      cliLevel: 'low',
+      envEffort: 'env-effort',
+    })
+    expect(result.effort).toBe('env-effort')
+  })
+
+  it('treats empty CAGENT_EFFORT as unset (falls back to level)', () => {
+    const result = resolveModel(makeEffortConfig(), {
+      cliLevel: 'low',
+      envEffort: '',
+    })
+    expect(result.effort).toBe('low-effort')
+  })
+
+  it('uses level effort when CLI and env are not set', () => {
+    const result = resolveModel(makeEffortConfig(), { cliLevel: 'high' })
+    expect(result.effort).toBe('high-effort')
+  })
+
+  it('uses default_level effort when no level is specified', () => {
+    const config = makeEffortConfig()
+    config.default_level = 'mid'
+    const result = resolveModel(config, {})
+    expect(result.effort).toBe('medium-effort')
+  })
+
+  it('does not apply default_level effort when model is explicit but level is not', () => {
+    const result = resolveModel(makeEffortConfig(), {
+      cliModel: 'deepseek-v4-pro',
+    })
+    expect(result.effort).toBeUndefined()
+  })
+
+  it('applies level effort when model is explicit and level is explicit', () => {
+    const result = resolveModel(makeEffortConfig(), {
+      cliModel: 'kimi-k2.7-code',
+      cliLevel: 'high',
+    })
+    expect(result.effort).toBe('high-effort')
+  })
+
+  it('uses env level effort when model and level are explicit via env', () => {
+    const result = resolveModel(makeEffortConfig(), {
+      envModel: 'deepseek-v4-flash',
+      envLevel: 'low',
+    })
+    expect(result.effort).toBe('low-effort')
+  })
+
+  it('returns undefined effort when level has no effort set', () => {
+    const config = makeConfig()
+    const result = resolveModel(config, { cliLevel: 'mid' })
+    expect(result.effort).toBeUndefined()
+  })
 })
 
 describe('findSimilarModel', () => {
