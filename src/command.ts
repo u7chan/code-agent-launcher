@@ -94,6 +94,14 @@ export function formatCommandSpec(spec: CommandSpec): string {
   return formatCommandForDisplay(command, args)
 }
 
+function escapeShellArgForExecution(arg: string): string {
+  return `'${arg.replace(/'/g, `'\\''`)}'`
+}
+
+export function formatCommandSpecForShell(spec: CommandSpec): string {
+  return [spec.command, ...spec.args].map(escapeShellArgForExecution).join(' ')
+}
+
 export function runCommandSpec(
   spec: CommandSpec,
   options: RunOptions = {},

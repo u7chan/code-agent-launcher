@@ -10,6 +10,63 @@
   - Codex: `-c model_reasoning_effort=<TOML文字列>` として渡す
   - OpenCode Go (run): `--variant` として渡す
   - OpenCode Go (対話): 未対応のため effort 解決時に fail-fast
+
+### effort の優先順位
+
+高い順:
+
+1. `--effort` CLI オプション
+2. `CAGENT_EFFORT` 環境変数
+3. レベルの `effort` 設定（`levels.<name>.effort`）
+4. 指定なし（各 CLI の現在設定を継承）
+
+### 優先順位の補足
+
+- `--model` を単独指定した場合、`default_level` の effort は継承しない（レベルが明示されないため）
+- `--model --level <level>` でレベルを同時指定した場合は、そのレベルの effort が適用される
+- `--effort` / `CAGENT_EFFORT` / level effort のいずれも指定がない場合、effort は CLI に渡されず、CLI 側の現在設定が使われる
+
+### 対話 / 非対話 対応表
+
+| エージェント | モード    | effort 対応                    |
+| ------------ | --------- | ------------------------------ |
+| Codex        | exec (非対話) | `-c model_reasoning_effort` |
+| Codex        | 対話      | `-c model_reasoning_effort`    |
+| OpenCode Go  | run (非対話)  | `--variant`                 |
+| OpenCode Go  | 対話      | 未対応（fail-fast）           |
+
+### YAML 設定例（effort あり）
+
+```yaml
+version: 2
+default_agent: codex
+default_level: mid
+agents:
+  codex:
+    bin: codex
+    provider: codex
+    model_id_prefix: false
+    levels:
+      low:
+        description: Simple
+        default_model: gpt-5.6-luna
+        models: [gpt-5.6-luna]
+        effort: low
+      mid:
+        description: Normal
+        default_model: gpt-5.6-terra
+        models: [gpt-5.6-terra]
+        effort: mid
+      high:
+        description: Complex
+        default_model: gpt-5.6-sol
+        models: [gpt-5.6-sol]
+        effort: high
+multiplexer:
+  default: herdr
+  herdr:
+    enabled: true
+```
 - 非対話実行用の `run` コマンド
 - Herdr 連携用の `mux` コマンド
 - 設定と環境の検証用 `doctor` コマンド

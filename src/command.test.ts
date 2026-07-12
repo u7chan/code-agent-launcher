@@ -6,6 +6,7 @@ import {
   buildCommand,
   findExecutable,
   formatCommandForDisplay,
+  formatCommandSpecForShell,
   runCommandFormat,
 } from './command.js'
 
@@ -74,5 +75,80 @@ describe('runCommandFormat', () => {
     expect(result).toContain('opencode')
     expect(result).toContain('--model')
     expect(result).toContain('opencode-go/deepseek-v4-pro')
+  })
+})
+
+describe('formatCommandSpecForShell', () => {
+  it('wraps simple args in single quotes', () => {
+    const result = formatCommandSpecForShell({
+      command: 'echo',
+      args: ['hello', 'world'],
+    })
+    expect(result).toBe("'echo' 'hello' 'world'")
+  })
+
+  it('protects dollar from shell expansion', () => {
+    const result = formatCommandSpecForShell({
+      command: 'codex',
+      args: ['exec', '-c', 'model_reasoning_effort="high$test"'],
+    })
+    expect(result).toBe("'codex' 'exec' '-c' 'model_reasoning_effort=\"high$test\"'")
+  })
+
+  it('protects backtick from shell expansion', () => {
+    const result = formatCommandSpecForShell({
+      command: 'codex',
+      args: ['exec', '-c', 'model_reasoning_effort="high`test"'],
+    })
+    expect(result).toBe("'codex' 'exec' '-c' 'model_reasoning_effort=\"high`test\"'")
+  })
+
+  it('protects parentheses from shell subshell', () => {
+    const result = formatCommandSpecForShell({
+      command: 'codex',
+      args: ['exec', '-c', 'model_reasoning_effort="$(id)"'],
+    })
+    expect(result).toBe("'codex' 'exec' '-c' 'model_reasoning_effort=\"$(id)\"'")
+  })
+
+  it('escapes single quotes inside args', () => {
+    const result = formatCommandSpecForShell({
+      command: 'codex',
+      args: ['exec', '-c', 'model_reasoning_effort="it\'s"'],
+    })
+    expect(result).toBe("'codex' 'exec' '-c' 'model_reasoning_effort=\"it'\\''s\"'")
+  })
+
+  it('handles args with spaces without breaking', () => {
+    const result = formatCommandSpecForShell({
+      command: 'codex',
+      args: ['exec', '-c', 'model_reasoning_effort="high low"'],
+    })
+    expect(result).toBe("'codex' 'exec' '-c' 'model_reasoning_effort=\"high low\"'")
+  })
+
+  it('protects semicolons from shell command chaining', () => {
+    const result = formatCommandSpecForShell({
+      command: 'codex',
+      args: ['exec', '-c', 'model_reasoning_effort="high;rm -rf /"'],
+    })
+    expect(result).toBe("'codex' 'exec' '-c' 'model_reasoning_effort=\"high;rm -rf /\"'")
+  })
+
+  it('handles full mux command with effort containing special chars', () => {
+    const result = formatCommandSpecForShell({
+      command: 'codex',
+      args: [
+        'exec',
+        '--model',
+        'gpt-5.6-sol',
+        '-c',
+        'model_reasoning_effort="high $test`back`\'quote\'"',
+        'hello',
+      ],
+    })
+    expect(result).toBe(
+      "'codex' 'exec' '--model' 'gpt-5.6-sol' '-c' 'model_reasoning_effort=\"high $test`back`'\\''quote'\\''\"' 'hello'",
+    )
   })
 })

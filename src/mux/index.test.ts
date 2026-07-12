@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { formatCommandSpecForShell } from '../command.js'
 import { loadConfig } from '../config.js'
 import { MuxAdapterError, resolveMuxCommand, validateMuxAdapter } from './index.js'
 
@@ -130,6 +131,45 @@ describe('resolveMuxCommand', () => {
       const config = loadConfig(file)
       expect(() => resolveMuxCommand(config, 'start', 'mid', { effort: 'high' }, [])).toThrow(
         MuxAdapterError,
+      )
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('mux run effort with special chars produces shell-safe serialization', () => {
+    clearEffortEnv()
+    const { file, cleanup } = writeTempConfig(codexConfig)
+    try {
+      const config = loadConfig(file)
+      const { commandSpec } = resolveMuxCommand(
+        config,
+        'run',
+        'mid',
+        { effort: '$HOME $(id) `backtick` ; rm -rf / "quote" it\'s \\back' },
+        ['hello'],
+      )
+      const shellCmd = formatCommandSpecForShell(commandSpec)
+      // All args are single-quote-wrapped — shell cannot expand anything inside single quotes
+      expect(shellCmd.startsWith("'codex'")).toBe(true)
+      expect(shellCmd).toContain('$HOME')
+      expect(shellCmd).toContain('$(id)')
+      // Single quotes within args are properly escaped with '\''
+      expect(shellCmd).toContain("'\\''")
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('mux run effort without special chars produces shell-safe args', () => {
+    clearEffortEnv()
+    const { file, cleanup } = writeTempConfig(codexConfig)
+    try {
+      const config = loadConfig(file)
+      const { commandSpec } = resolveMuxCommand(config, 'run', 'mid', { effort: 'high' }, ['hello'])
+      const shellCmd = formatCommandSpecForShell(commandSpec)
+      expect(shellCmd).toBe(
+        "'codex' 'exec' '--model' 'gpt-5' '-c' 'model_reasoning_effort=\"high\"' 'hello'",
       )
     } finally {
       cleanup()
