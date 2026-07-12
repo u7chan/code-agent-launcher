@@ -7,6 +7,7 @@ export interface LevelConfig {
   description: string
   default_model: string
   models: string[]
+  effort?: string
 }
 export interface AgentConfig {
   bin: string
@@ -63,6 +64,22 @@ function string(v: unknown, m: string): string {
   if (typeof v !== 'string' || !v) throw new ConfigError(m)
   return v
 }
+function parseEffort(name: string, level: Record<string, unknown>): string | undefined {
+  if (!('effort' in level) || level.effort === undefined) return undefined
+  if (
+    level.effort === null ||
+    typeof level.effort === 'number' ||
+    typeof level.effort === 'boolean'
+  ) {
+    throw new ConfigError(`level "${name}".effort must be a string`)
+  }
+  if (typeof level.effort === 'string') {
+    if (level.effort === '') throw new ConfigError(`level "${name}".effort must not be empty`)
+    return level.effort
+  }
+  throw new ConfigError(`level "${name}".effort must be a string`)
+}
+
 function levels(raw: unknown): Record<string, LevelConfig> {
   const out: Record<string, LevelConfig> = {}
   for (const [name, value] of Object.entries(record(raw, 'levels must be an object'))) {
@@ -73,6 +90,7 @@ function levels(raw: unknown): Record<string, LevelConfig> {
       description: string(level.description, `level "${name}".description must be a string`),
       default_model: string(level.default_model, `level "${name}".default_model must be a string`),
       models: level.models as string[],
+      effort: parseEffort(name, level),
     }
   }
   return out

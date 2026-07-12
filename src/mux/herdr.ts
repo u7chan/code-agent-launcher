@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import type { CommandSpec } from '../agents/types.js'
-import { formatCommandSpec } from '../command.js'
+import { formatCommandSpecForShell } from '../command.js'
 
 export interface HerdrContext {
   command: CommandSpec
@@ -101,11 +101,11 @@ export function quoteForHerdr(command: string): string {
   return `'${command.replace(/'/g, `'\\''`)}'`
 }
 
-function printDryRunSequence(cwd: string, opencodeCommand: string): void {
+function printDryRunSequence(cwd: string, agentCommand: string): void {
   console.log('# Herdr dry-run command sequence:')
   console.log('herdr pane current --current')
   console.log(`herdr pane split --pane <current-pane> --direction right --cwd ${cwd}`)
-  console.log(`herdr pane run <new-pane> ${quoteForHerdr(opencodeCommand)}`)
+  console.log(`herdr pane run <new-pane> ${agentCommand}`)
 }
 
 export function runInPane(pane: string, command: string): void {
@@ -127,17 +127,17 @@ export function closePane(pane: string): void {
 }
 
 function executeHerdrMux(ctx: HerdrContext): void {
-  const opencodeCommand = formatCommandSpec(ctx.command)
+  const agentCommand = formatCommandSpecForShell(ctx.command)
 
   if (ctx.dryRun) {
-    printDryRunSequence(ctx.cwd, opencodeCommand)
+    printDryRunSequence(ctx.cwd, agentCommand)
     return
   }
 
   checkHerdrBin()
   const currentPane = getCurrentPane()
   const newPane = splitPane(currentPane, ctx.cwd)
-  runInPane(newPane, opencodeCommand)
+  runInPane(newPane, agentCommand)
 }
 
 export function executeHerdrStart(ctx: HerdrContext): void {

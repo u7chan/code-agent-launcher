@@ -213,6 +213,27 @@ export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
     }
   }
 
+  // 16. agent levels with effort
+  for (const [agentId, agentCfg] of Object.entries(config.agents ?? {})) {
+    for (const [levelName, level] of Object.entries(agentCfg.levels)) {
+      if (level.effort) {
+        if (agentId === 'opencode-go') {
+          results.push(
+            ok(
+              `opencode-go level "${levelName}" effort "${level.effort}" — effective with cagent run (--variant). Interactive OpenCode sessions do not support effort.`,
+            ),
+          )
+        } else {
+          results.push(
+            ok(
+              `${agentId} level "${levelName}" effort "${level.effort}" — passed as -c model_reasoning_effort to the CLI.`,
+            ),
+          )
+        }
+      }
+    }
+  }
+
   return results
 }
 

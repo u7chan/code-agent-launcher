@@ -8,6 +8,7 @@ export interface RunCommandOptions {
   agent?: string
   level?: string
   model?: string
+  effort?: string
   dryRun?: boolean
 }
 
@@ -77,8 +78,10 @@ export function createRunCommand(): Command {
 
       const cliLevel = globals.level ?? positionalLevel
       const cliModel = globals.model
+      const cliEffort = globals.effort
       const envModel = process.env.CAGENT_MODEL
       const envLevel = process.env.CAGENT_LEVEL
+      const envEffort = process.env.CAGENT_EFFORT
       const dryRun = globals.dryRun === true
 
       const config = loadConfig()
@@ -92,6 +95,8 @@ export function createRunCommand(): Command {
         cliLevel,
         envModel,
         envLevel,
+        cliEffort,
+        envEffort,
       })
 
       for (const warning of resolved.warnings) {
@@ -105,6 +110,7 @@ export function createRunCommand(): Command {
         cwd: process.cwd(),
         extraArgs,
         config: agent,
+        effort: resolved.effort,
       })
 
       if (dryRun) {
@@ -113,6 +119,9 @@ export function createRunCommand(): Command {
             ? resolved.levelName
             : config.default_level
         console.log(`# Resolved level: ${displayLevel}`)
+        if (resolved.effort) {
+          console.log(`# Resolved effort: ${resolved.effort}`)
+        }
         console.log(formatCommandSpec(spec))
         return
       }

@@ -38,4 +38,25 @@ describe('parseRunArgv', () => {
       extraArgs: ['hello'],
     })
   })
+
+  it('handles --effort=x correctly', () => {
+    expect(parseRunArgv(['node', 'cagent', 'run', '--effort=high', '--', 'prompt'])).toEqual({
+      positionalLevel: undefined,
+      extraArgs: ['prompt'],
+    })
+  })
+
+  it('handles --effort x correctly (no = sign)', () => {
+    expect(parseRunArgv(['node', 'cagent', 'run', '--effort', 'high', '--', 'prompt'])).toEqual({
+      positionalLevel: undefined,
+      extraArgs: ['prompt'],
+    })
+  })
+
+  it('handles -e flag for effort', () => {
+    expect(parseRunArgv(['node', 'cagent', 'run', '-e', 'high', '--', 'prompt'])).toEqual({
+      positionalLevel: undefined,
+      extraArgs: ['prompt'],
+    })
+  })
 })
