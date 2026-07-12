@@ -41,6 +41,10 @@ Treat `backend_attestation: unobservable` as an unknown state, not a successful 
 
 レポートでは `automatic_routing`、`manual_attestation`、`backend_attestation` を混同せずに報告する。attestation、スクリーンショット、生ログ、`validation/.artifacts/` はコミットしない。
 
+## Wiki
+
+検証完了後、結果を永続化するには `validation-log-update` スキルを使う。GitHub Wiki の `Validation-Log.md` にエントリを追記する。
+
 ## Validation PRs
 
 When asked for a validation PR, require a clean worktree before the formal run. Commit the tested change first, run validation, then commit the report separately. Do not commit files below `validation/.artifacts/`.
