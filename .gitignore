@@ -34,6 +34,7 @@ go.work.sum
 # Node.js / TypeScript
 node_modules/
 dist/
+/release/
 *.tsbuildinfo
 
 # Local model-validation artifacts

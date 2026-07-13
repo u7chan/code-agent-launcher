@@ -8,17 +8,19 @@
     "cagent": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc && chmod +x dist/index.js && find dist -name '*.test.js' -delete",
+    "build": "bun scripts/build.ts",
+    "build:standalone": "bun scripts/build-standalone.ts",
     "start": "node dist/index.js",
     "dev": "bun src/index.ts",
     "test": "bun test src/ validation/",
     "validate": "bun validation/runner.ts",
     "validate:check": "tsc --noEmit -p validation/tsconfig.json",
-    "lint": "biome lint src/ validation/ && tsc --noEmit",
-    "lint:fix": "biome lint --write src/",
-    "format": "biome format --write src/ validation/",
-    "format:check": "biome format src/ validation/",
-    "check": "biome check src/ validation/ && tsc --noEmit && bun run validate:check"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts/tsconfig.json && bun run validate:check",
+    "lint": "biome lint src/ scripts/ validation/ && bun run typecheck",
+    "lint:fix": "biome lint --write src/ scripts/",
+    "format": "biome format --write src/ scripts/ validation/",
+    "format:check": "biome format src/ scripts/ validation/",
+    "check": "biome check src/ scripts/ validation/ && bun run typecheck"
   },
   "dependencies": {
     "chalk": "^5.3.0",

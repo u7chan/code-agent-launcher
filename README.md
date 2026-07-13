@@ -113,3 +113,19 @@ bun run validate smoke --profile core --live
 ```
 
 Codexのモデル対応は `low=gpt-5.6-luna`、`mid=gpt-5.6-terra`、`high=gpt-5.6-sol` です。実行結果は `validation/.artifacts/` に保存され、Git管理しません。
+
+## Standalone release artifact
+
+`bun run build:standalone` は Linux glibc x64 baseline と arm64 向けの standalone
+archive を `release/` に生成します。各 archive は次の固定構造です。
+
+```text
+cagent-vX.Y.Z-linux-<arch>/
+  cagent
+  README.md
+  LICENSE
+```
+
+archive は固定のファイル順、mtime、owner/group、gzip timestamp で生成します。同じ入力と
+固定した Bun toolchain では archive の再現性を確認できます。一方、Bun standalone binary
+自体の byte-for-byte 再現性は保証対象ではありません。

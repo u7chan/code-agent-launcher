@@ -3,6 +3,7 @@ import { getAgentAdapter } from './agents/registry.js'
 import { formatCommandSpec, runCommandSpec } from './command.js'
 import { getAgent, loadConfig } from './config.js'
 import { resolveModel } from './model.js'
+import { VERSION } from './version.js'
 
 export interface MainOptions {
   level?: string
@@ -19,7 +20,7 @@ export function createMainCommand(): Command {
   program
     .name('cagent')
     .description('Coding-agent launcher with model routing')
-    .version('0.1.0')
+    .version(VERSION)
     .argument('[level]', 'task level (low, mid, high, etc.)')
     .option('-l, --level <level>', 'task level')
     .option('-m, --model <model>', 'explicit model id')
