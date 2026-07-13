@@ -109,10 +109,14 @@ describe('release archive validation', () => {
     )
   })
 
-  it('rejects cagent without any executable bit', async () => {
+  it.each([
+    ['0o644', 0o644],
+    ['0o001', 0o001],
+    ['0o010', 0o010],
+  ])('rejects cagent without owner execute permission: %s', async (_label, mode) => {
     const entries = validEntries()
-    entries[1] = { ...entries[1], mode: 0o644 }
+    entries[1] = { ...entries[1], mode }
 
-    await expect(validate(entries)).rejects.toThrow('Archive executable is not executable')
+    await expect(validate(entries)).rejects.toThrow('Archive executable is not executable by owner')
   })
 })

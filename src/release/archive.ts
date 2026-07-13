@@ -126,8 +126,8 @@ export function validateArchiveEntries(
       )
     }
     if (entry.name === `${artifact.directoryName}/${artifact.executableName}`) {
-      if ((entry.mode & 0o111) === 0) {
-        throw new Error(`Archive executable is not executable: ${entry.name}`)
+      if ((entry.mode & 0o100) === 0) {
+        throw new Error(`Archive executable is not executable by owner: ${entry.name}`)
       }
     }
     seen.add(entry.name)
