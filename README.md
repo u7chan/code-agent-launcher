@@ -114,6 +114,36 @@ bun run validate smoke --profile core --live
 
 Codexのモデル対応は `low=gpt-5.6-luna`、`mid=gpt-5.6-terra`、`high=gpt-5.6-sol` です。実行結果は `validation/.artifacts/` に保存され、Git管理しません。
 
+## Release 事前検証
+
+通常 CI は Bun 1.3.10 を使い、Linux x64 standalone の build・pack、archive
+構造、SHA-256 checksum、隔離 smoke test を検証します。ローカルでは Linux x64
+環境で同じ検証を次の command から実行できます。
+
+```bash
+bun run release:check
+```
+
+smoke test は repository 外の一時 directory で `cagent --version`、`cagent --help`、
+一時 `CAGENT_CONFIG` を使う `cagent config init` を実行します。実行 directory の
+`.env` と `bunfig.toml` が環境変数や preload を注入しないことも確認します。
+
+明示した stable SemVer tag と `package.json` version、および生成済み archive を検証する
+場合は次の command を使用します。archive は展開せず entry 一覧を検査します。
+
+```bash
+bun run release:validate -- --tag v0.1.0
+bun run release:validate -- --tag v0.1.0 \
+  --archive release/cagent-v0.1.0-linux-x64.tar.gz --arch x64
+```
+
+checksum 処理は後続の release workflow から次の形で再利用できます。
+
+```bash
+bun run release:checksum -- generate release/SHA256SUMS release/*.tar.gz
+bun run release:checksum -- verify release/SHA256SUMS release
+```
+
 ## Standalone release artifact
 
 `bun run build:standalone` は Linux glibc x64 baseline と arm64 向けの standalone

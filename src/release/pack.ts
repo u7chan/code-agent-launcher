@@ -26,7 +26,7 @@ export interface TarEntry {
   name: string
   data: Uint8Array
   mode: number
-  type: 'file' | 'directory'
+  type: 'file' | 'directory' | 'symlink'
 }
 
 async function assertRegularFile(path: string): Promise<void> {
@@ -89,7 +89,7 @@ function createTarHeader(entry: TarEntry): Uint8Array {
   writeOctal(header, 124, 12, entry.data.length)
   writeOctal(header, 136, 12, ARCHIVE_MTIME)
   header.fill(0x20, 148, 156)
-  header[156] = entry.type === 'directory' ? 0x35 : 0x30
+  header[156] = entry.type === 'directory' ? 0x35 : entry.type === 'symlink' ? 0x32 : 0x30
   writeString(header, 257, 6, 'ustar\0')
   writeString(header, 263, 2, '00')
 
