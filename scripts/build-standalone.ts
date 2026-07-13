@@ -4,7 +4,9 @@ import { buildStandalone, readPackageVersion } from '../src/release/build.js'
 import { packStagedRelease, stageRelease } from '../src/release/pack.js'
 import { createReleaseArtifact, findReleaseTarget, releaseTargets } from '../src/release/targets.js'
 
-function parseArchitectures(arguments_: readonly string[]): Array<(typeof releaseTargets)[number]['arch']> {
+function parseArchitectures(
+  arguments_: readonly string[],
+): Array<(typeof releaseTargets)[number]['arch']> {
   if (arguments_.length === 0) {
     return releaseTargets.map((target) => target.arch)
   }
