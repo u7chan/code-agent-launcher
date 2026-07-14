@@ -73,6 +73,7 @@ default_level: mid
 agents:
   opencode-go:
     bin: opencode
+    provider: opencode-go
     levels:
       mid:
         description: Normal
@@ -96,6 +97,7 @@ default_level: heavy
 agents:
   opencode-go:
     bin: opencode
+    provider: opencode-go
     levels:
       low:
         description: Cheap
@@ -108,6 +110,96 @@ multiplexer:
     )
     process.env.CAGENT_CONFIG = configFile
     expect(() => loadConfig()).toThrow('default_level')
+  })
+
+  it('throws ConfigError when an agent provider is missing', () => {
+    const configFile = join(tmpDir, 'config.yaml')
+    writeFileSync(
+      configFile,
+      `default_agent: opencode-go
+default_level: mid
+agents:
+  opencode-go:
+    bin: opencode
+    levels:
+      mid:
+        description: Normal
+        default_model: deepseek-v4-pro
+        models: [deepseek-v4-pro]
+multiplexer:
+  default: herdr
+  herdr: { enabled: true }
+`,
+    )
+    process.env.CAGENT_CONFIG = configFile
+
+    expect(() => loadConfig()).toThrow('agent "opencode-go".provider must be a string')
+  })
+
+  it('throws ConfigError when an agent provider is empty', () => {
+    const configFile = join(tmpDir, 'config.yaml')
+    writeFileSync(
+      configFile,
+      `default_agent: opencode-go
+default_level: mid
+agents:
+  opencode-go:
+    bin: opencode
+    provider: ""
+    levels:
+      mid:
+        description: Normal
+        default_model: deepseek-v4-pro
+        models: [deepseek-v4-pro]
+multiplexer:
+  default: herdr
+  herdr: { enabled: true }
+`,
+    )
+    process.env.CAGENT_CONFIG = configFile
+
+    expect(() => loadConfig()).toThrow('agent "opencode-go".provider must not be empty')
+  })
+
+  it('rejects legacy opencode_bin config', () => {
+    const configFile = join(tmpDir, 'config.yaml')
+    writeFileSync(
+      configFile,
+      `opencode_bin: opencode
+default_agent: opencode-go
+default_level: mid
+agents: {}
+multiplexer:
+  default: herdr
+`,
+    )
+    process.env.CAGENT_CONFIG = configFile
+
+    expect(() => loadConfig()).toThrow(
+      'legacy config format is unsupported; define agents and default_agent instead',
+    )
+  })
+
+  it('rejects legacy top-level levels config', () => {
+    const configFile = join(tmpDir, 'config.yaml')
+    writeFileSync(
+      configFile,
+      `default_agent: opencode-go
+default_level: mid
+levels:
+  mid:
+    description: Normal
+    default_model: deepseek-v4-pro
+    models: [deepseek-v4-pro]
+multiplexer:
+  default: herdr
+`,
+    )
+    process.env.CAGENT_CONFIG = configFile
+
+    expect(() => loadConfig()).toThrow(
+      'legacy config format is unsupported; define agents and default_agent instead',
+    )
   })
 })
 

@@ -585,7 +585,7 @@ function runHerdrLive(
     level,
     cwd,
     extraArgs: [prompt],
-    config: { bin: adapter.defaultBin, levels: {} },
+    config: { bin: adapter.defaultBin, provider: agent, levels: {} },
   })
   const formattedCommand = formatCommandSpec(commandSpec)
   const commandSummary =

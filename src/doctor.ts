@@ -74,7 +74,7 @@ export function runDoctor(options: DoctorOptions = {}, agentId?: string): CheckR
   }
 
   // 4. agent provider defined
-  const provider = activeAgent.provider ?? effectiveAgentId
+  const provider = activeAgent.provider
   if (provider.length > 0) {
     results.push(ok(`provider configured: ${provider}`))
   } else {

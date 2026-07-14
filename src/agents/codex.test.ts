@@ -6,7 +6,7 @@ const baseContext = {
   level: 'high',
   cwd: '/tmp',
   extraArgs: ['hello'],
-  config: { bin: 'codex', model_id_prefix: false, levels: {} },
+  config: { bin: 'codex', provider: 'codex', model_id_prefix: false, levels: {} },
 }
 
 describe('serializeTomlString', () => {

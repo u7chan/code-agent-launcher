@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'bun:test'
-import { parseRunArgv } from './run.js'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createMainCommand } from './main.js'
+import { createRunCommand, parseRunArgv } from './run.js'
 
 describe('parseRunArgv', () => {
   it('takes level before -- and prompt after --', () => {
@@ -58,5 +62,44 @@ describe('parseRunArgv', () => {
       positionalLevel: undefined,
       extraArgs: ['prompt'],
     })
+  })
+})
+
+describe('run config validation', () => {
+  it('throws ConfigError before resolving the agent when provider is empty', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cagent-run-test-'))
+    const file = join(dir, 'config.yaml')
+    writeFileSync(
+      file,
+      `default_agent: opencode-go
+default_level: mid
+agents:
+  opencode-go:
+    bin: opencode
+    provider: ""
+    levels:
+      mid:
+        description: Normal
+        default_model: deepseek-v4-pro
+        models: [deepseek-v4-pro]
+multiplexer:
+  default: herdr
+  herdr: { enabled: true }
+`,
+    )
+    const originalConfig = process.env.CAGENT_CONFIG
+    process.env.CAGENT_CONFIG = file
+    const command = createMainCommand()
+    command.addCommand(createRunCommand())
+
+    try {
+      await expect(command.parseAsync(['node', 'cagent', '--dry-run', 'run'])).rejects.toThrow(
+        'agent "opencode-go".provider must not be empty',
+      )
+    } finally {
+      if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
+      else process.env.CAGENT_CONFIG = originalConfig
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

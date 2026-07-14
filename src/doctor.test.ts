@@ -224,6 +224,35 @@ multiplexer:
     }
   })
 
+  it('stops at config validation when an agent provider is missing', () => {
+    const { file, cleanup } = writeTempConfig(`default_agent: opencode-go
+default_level: mid
+agents:
+  opencode-go:
+    bin: opencode
+    levels:
+      mid:
+        description: Normal
+        default_model: deepseek-v4-pro
+        models: [deepseek-v4-pro]
+multiplexer:
+  default: herdr
+  herdr: { enabled: true }
+`)
+    process.env.CAGENT_CONFIG = file
+    try {
+      const results = runDoctor()
+
+      expect(results).toHaveLength(2)
+      expect(results[1]).toEqual({
+        status: 'ERROR',
+        message: 'config validation failed: agent "opencode-go".provider must be a string',
+      })
+    } finally {
+      cleanup()
+    }
+  })
+
   it('falls back to default_agent when agentId is not passed', () => {
     const { file, cleanup } = writeTempConfig(`default_agent: codex
 default_level: mid

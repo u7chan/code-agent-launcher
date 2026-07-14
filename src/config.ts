@@ -11,7 +11,7 @@ export interface LevelConfig {
 }
 export interface AgentConfig {
   bin: string
-  provider?: string
+  provider: string
   /** Set false for CLIs, such as Codex, that expect raw model IDs. */
   model_id_prefix?: boolean
   levels: Record<string, LevelConfig>
@@ -57,6 +57,11 @@ function record(v: unknown, m: string): Record<string, unknown> {
 }
 function string(v: unknown, m: string): string {
   if (typeof v !== 'string' || !v) throw new ConfigError(m)
+  return v
+}
+function requiredNonEmptyString(v: unknown, name: string): string {
+  if (typeof v !== 'string') throw new ConfigError(`${name} must be a string`)
+  if (!v) throw new ConfigError(`${name} must not be empty`)
   return v
 }
 function parseEffort(name: string, level: Record<string, unknown>): string | undefined {
@@ -110,6 +115,12 @@ function mux(raw: unknown): MultiplexerConfig {
   return out
 }
 function normalize(root: Record<string, unknown>): Config {
+  if ('opencode_bin' in root || 'levels' in root) {
+    throw new ConfigError(
+      'legacy config format is unsupported; define agents and default_agent instead',
+    )
+  }
+
   const multiplexer = mux(root.multiplexer)
 
   const agents: Record<string, AgentConfig> = {}
@@ -117,7 +128,7 @@ function normalize(root: Record<string, unknown>): Config {
     const agent = record(raw, `agent "${id}" must be an object`)
     agents[id] = {
       bin: string(agent.bin, `agent "${id}".bin must be a string`),
-      provider: typeof agent.provider === 'string' ? agent.provider : undefined,
+      provider: requiredNonEmptyString(agent.provider, `agent "${id}".provider`),
       model_id_prefix: agent.model_id_prefix !== false,
       levels: levels(agent.levels),
     }

@@ -20,7 +20,7 @@ export function createModelsCommand(): Command {
       const effectiveAgentId = globals.agent ?? process.env.CAGENT_AGENT ?? config.default_agent
       const agent = getAgent(config, effectiveAgentId)
       const adapter = getAgentAdapter(effectiveAgentId)
-      const provider = agent.provider ?? effectiveAgentId
+      const provider = agent.provider
 
       if (!adapter.buildModelListCommand) {
         console.error(`Error: agent "${effectiveAgentId}" does not support listing models`)
