@@ -29,7 +29,6 @@ export interface MultiplexerConfig {
 }
 
 export interface Config {
-  version: number
   default_agent: string
   default_level: string
   agents: Record<string, AgentConfig>
@@ -111,14 +110,6 @@ function mux(raw: unknown): MultiplexerConfig {
   return out
 }
 function normalize(root: Record<string, unknown>): Config {
-  const version = root.version
-  if (typeof version !== 'number') {
-    throw new ConfigError('config must have a numeric version field')
-  }
-  if (version !== 2) {
-    throw new ConfigError(`unsupported config version: ${version}. Only version 2 is supported.`)
-  }
-
   const multiplexer = mux(root.multiplexer)
 
   const agents: Record<string, AgentConfig> = {}
@@ -143,7 +134,6 @@ function normalize(root: Record<string, unknown>): Config {
     )
 
   return {
-    version: 2,
     default_agent: defaultAgent,
     default_level: defaultLevel,
     agents,

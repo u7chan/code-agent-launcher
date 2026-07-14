@@ -38,7 +38,6 @@
 ### YAML 設定例（effort あり）
 
 ```yaml
-version: 2
 default_agent: codex
 default_level: mid
 agents:

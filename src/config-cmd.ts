@@ -8,9 +8,7 @@ function resolveConfigPath(): string {
   return process.env.CAGENT_CONFIG ?? configPath()
 }
 
-export const DEFAULT_CONFIG = `version: 2
-
-default_agent: codex
+export const DEFAULT_CONFIG = `default_agent: codex
 default_level: mid
 agents:
   codex:

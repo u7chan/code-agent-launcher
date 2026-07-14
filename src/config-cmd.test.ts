@@ -5,8 +5,7 @@ import { dirname, join } from 'node:path'
 import { configPath } from './config.js'
 import { createConfigCommand, DEFAULT_CONFIG } from './config-cmd.js'
 
-const v2Fixture = `version: 2
-default_agent: opencode-go
+const validFixture = `default_agent: opencode-go
 default_level: mid
 agents:
   opencode-go:
@@ -198,7 +197,7 @@ describe('createConfigCommand', () => {
     it('errors when editor exits with non-zero status', async () => {
       const path = configPath()
       mkdirSync(dirname(path), { recursive: true })
-      writeFileSync(path, v2Fixture, 'utf-8')
+      writeFileSync(path, validFixture, 'utf-8')
       process.env.EDITOR = 'false'
       delete process.env.VISUAL
       const command = createConfigCommand()
@@ -214,7 +213,7 @@ describe('createConfigCommand', () => {
 
     it('respects CAGENT_CONFIG for edit path', async () => {
       const customPath = join(tmpDir, 'custom-edit.yaml')
-      writeFileSync(customPath, v2Fixture, 'utf-8')
+      writeFileSync(customPath, validFixture, 'utf-8')
       process.env.CAGENT_CONFIG = customPath
       process.env.EDITOR = 'false'
       delete process.env.VISUAL

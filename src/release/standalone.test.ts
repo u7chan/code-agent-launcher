@@ -20,7 +20,6 @@ function createEnvironment(configHome: string): Record<string, string> {
 
 function configYaml(): string {
   return [
-    'version: 2',
     'default_agent: opencode-go',
     'default_level: low',
     'agents:',

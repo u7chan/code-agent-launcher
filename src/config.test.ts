@@ -22,12 +22,11 @@ describe('loadConfig', () => {
     }
   })
 
-  it('loads a valid v2 config file', () => {
+  it('loads a valid config file', () => {
     const configFile = join(tmpDir, 'config.yaml')
     writeFileSync(
       configFile,
-      `version: 2
-default_agent: opencode-go
+      `default_agent: opencode-go
 default_level: mid
 agents:
   opencode-go:
@@ -48,81 +47,9 @@ multiplexer:
     process.env.CAGENT_CONFIG = configFile
 
     const config = loadConfig()
-    expect(config.version).toBe(2)
     expect(config.default_agent).toBe('opencode-go')
     expect(config.default_level).toBe('mid')
     expect(config.agents['opencode-go'].levels.mid.default_model).toBe('deepseek-v4-pro')
-  })
-
-  it('rejects config version 1', () => {
-    const configFile = join(tmpDir, 'config.yaml')
-    writeFileSync(
-      configFile,
-      `version: 1
-opencode_bin: opencode
-provider: opencode-go
-default_level: mid
-levels:
-  mid:
-    description: Normal
-    default_model: deepseek-v4-pro
-    models:
-      - deepseek-v4-pro
-multiplexer:
-  default: herdr
-  herdr:
-    enabled: true
-`,
-    )
-    process.env.CAGENT_CONFIG = configFile
-    expect(() => loadConfig()).toThrow('unsupported config version')
-  })
-
-  it('rejects config version 3', () => {
-    const configFile = join(tmpDir, 'config.yaml')
-    writeFileSync(
-      configFile,
-      `version: 3
-default_agent: opencode-go
-default_level: mid
-agents:
-  opencode-go:
-    bin: opencode
-    levels:
-      mid:
-        description: Normal
-        default_model: deepseek-v4-pro
-        models: [deepseek-v4-pro]
-multiplexer:
-  default: herdr
-  herdr: { enabled: true }
-`,
-    )
-    process.env.CAGENT_CONFIG = configFile
-    expect(() => loadConfig()).toThrow('unsupported config version')
-  })
-
-  it('rejects missing version', () => {
-    const configFile = join(tmpDir, 'config.yaml')
-    writeFileSync(
-      configFile,
-      `default_agent: opencode-go
-default_level: mid
-agents:
-  opencode-go:
-    bin: opencode
-    levels:
-      mid:
-        description: Normal
-        default_model: deepseek-v4-pro
-        models: [deepseek-v4-pro]
-multiplexer:
-  default: herdr
-  herdr: { enabled: true }
-`,
-    )
-    process.env.CAGENT_CONFIG = configFile
-    expect(() => loadConfig()).toThrow('config must have a numeric version field')
   })
 
   it('throws ConfigError for missing file', () => {
@@ -141,8 +68,7 @@ multiplexer:
     const configFile = join(tmpDir, 'config.yaml')
     writeFileSync(
       configFile,
-      `version: 2
-default_agent: none
+      `default_agent: none
 default_level: mid
 agents:
   opencode-go:
@@ -165,8 +91,7 @@ multiplexer:
     const configFile = join(tmpDir, 'config.yaml')
     writeFileSync(
       configFile,
-      `version: 2
-default_agent: opencode-go
+      `default_agent: opencode-go
 default_level: heavy
 agents:
   opencode-go:
@@ -189,7 +114,6 @@ multiplexer:
 describe('getAgent', () => {
   function makeConfig() {
     return {
-      version: 2 as const,
       default_agent: 'opencode-go',
       default_level: 'mid',
       agents: {
@@ -242,7 +166,7 @@ describe('level effort validation', () => {
     const file = join(tmpdir(), `cagent-effort-valid-${process.pid}.yaml`)
     writeFileSync(
       file,
-      `version: 2\ndefault_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: high\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+      `default_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: high\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
     )
     try {
       const config = loadConfig(file)
@@ -256,7 +180,7 @@ describe('level effort validation', () => {
     const file = join(tmpdir(), `cagent-effort-none-${process.pid}.yaml`)
     writeFileSync(
       file,
-      `version: 2\ndefault_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+      `default_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
     )
     try {
       const config = loadConfig(file)
@@ -270,7 +194,7 @@ describe('level effort validation', () => {
     const file = join(tmpdir(), `cagent-effort-empty-${process.pid}.yaml`)
     writeFileSync(
       file,
-      `version: 2\ndefault_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: ""\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+      `default_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: ""\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
     )
     try {
       expect(() => loadConfig(file)).toThrow(ConfigError)
@@ -283,7 +207,7 @@ describe('level effort validation', () => {
     const file = join(tmpdir(), `cagent-effort-num-${process.pid}.yaml`)
     writeFileSync(
       file,
-      `version: 2\ndefault_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: 42\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+      `default_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: 42\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
     )
     try {
       expect(() => loadConfig(file)).toThrow(ConfigError)
@@ -296,7 +220,7 @@ describe('level effort validation', () => {
     const file = join(tmpdir(), `cagent-effort-bool-${process.pid}.yaml`)
     writeFileSync(
       file,
-      `version: 2\ndefault_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: true\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+      `default_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: true\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
     )
     try {
       expect(() => loadConfig(file)).toThrow(ConfigError)
@@ -309,7 +233,7 @@ describe('level effort validation', () => {
     const file = join(tmpdir(), `cagent-effort-null-${process.pid}.yaml`)
     writeFileSync(
       file,
-      `version: 2\ndefault_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: null\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+      `default_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n        effort: null\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
     )
     try {
       expect(() => loadConfig(file)).toThrow(ConfigError)
@@ -319,12 +243,12 @@ describe('level effort validation', () => {
   })
 })
 
-describe('config v2', () => {
-  it('loads an agent-specific v2 config', () => {
-    const file = join(tmpdir(), `cagent-v2-${process.pid}.yaml`)
+describe('config', () => {
+  it('loads an agent-specific config', () => {
+    const file = join(tmpdir(), `cagent-agent-specific-${process.pid}.yaml`)
     writeFileSync(
       file,
-      `version: 2\ndefault_agent: opencode-go\ndefault_level: low\nagents:\n  opencode-go:\n    bin: custom-opencode\n    provider: opencode-go\n    levels:\n      low:\n        description: Simple\n        default_model: qwen\n        models: [qwen]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+      `default_agent: opencode-go\ndefault_level: low\nagents:\n  opencode-go:\n    bin: custom-opencode\n    provider: opencode-go\n    levels:\n      low:\n        description: Simple\n        default_model: qwen\n        models: [qwen]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
     )
     try {
       expect(loadConfig(file).agents['opencode-go'].bin).toBe('custom-opencode')
@@ -334,10 +258,10 @@ describe('config v2', () => {
   })
 
   it('preserves model_id_prefix=false for Codex model IDs', () => {
-    const file = join(tmpdir(), `cagent-codex-v2-${process.pid}.yaml`)
+    const file = join(tmpdir(), `cagent-codex-prefix-${process.pid}.yaml`)
     writeFileSync(
       file,
-      `version: 2\ndefault_agent: codex\ndefault_level: low\nagents:\n  codex:\n    bin: codex\n    provider: codex\n    model_id_prefix: false\n    levels:\n      low:\n        description: Simple\n        default_model: gpt-5.6-luna\n        models: [gpt-5.6-luna]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+      `default_agent: codex\ndefault_level: low\nagents:\n  codex:\n    bin: codex\n    provider: codex\n    model_id_prefix: false\n    levels:\n      low:\n        description: Simple\n        default_model: gpt-5.6-luna\n        models: [gpt-5.6-luna]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
     )
     try {
       expect(loadConfig(file).agents.codex.model_id_prefix).toBe(false)
@@ -350,7 +274,7 @@ describe('config v2', () => {
     const file = join(tmpdir(), `cagent-codex-default-${process.pid}.yaml`)
     writeFileSync(
       file,
-      `version: 2\ndefault_agent: codex\ndefault_level: mid\nagents:\n  codex:\n    bin: codex\n    provider: codex\n    model_id_prefix: false\n    levels:\n      mid:\n        description: Balanced\n        default_model: gpt-5.6-terra\n        models: [gpt-5.6-terra]\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Balanced\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+      `default_agent: codex\ndefault_level: mid\nagents:\n  codex:\n    bin: codex\n    provider: codex\n    model_id_prefix: false\n    levels:\n      mid:\n        description: Balanced\n        default_model: gpt-5.6-terra\n        models: [gpt-5.6-terra]\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Balanced\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
     )
     try {
       const config = loadConfig(file)
@@ -366,7 +290,7 @@ describe('config v2', () => {
     const file = join(tmpdir(), `cagent-switch-${process.pid}.yaml`)
     writeFileSync(
       file,
-      `version: 2\ndefault_agent: opencode-go\ndefault_level: mid\nagents:\n  codex:\n    bin: codex\n    provider: codex\n    model_id_prefix: false\n    levels:\n      mid:\n        description: Balanced\n        default_model: gpt-5.6-terra\n        models: [gpt-5.6-terra]\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Balanced\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+      `default_agent: opencode-go\ndefault_level: mid\nagents:\n  codex:\n    bin: codex\n    provider: codex\n    model_id_prefix: false\n    levels:\n      mid:\n        description: Balanced\n        default_model: gpt-5.6-terra\n        models: [gpt-5.6-terra]\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Balanced\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
     )
     try {
       const config = loadConfig(file)
@@ -381,7 +305,7 @@ describe('config v2', () => {
     const primary = join(tmpdir(), `cagent-primary-${process.pid}.yaml`)
     writeFileSync(
       primary,
-      `version: 2\ndefault_agent: opencode-go\ndefault_level: low\nagents:\n  opencode-go:\n    bin: primary-opencode\n    provider: opencode-go\n    levels:\n      low:\n        description: Simple\n        default_model: qwen\n        models: [qwen]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
+      `default_agent: opencode-go\ndefault_level: low\nagents:\n  opencode-go:\n    bin: primary-opencode\n    provider: opencode-go\n    levels:\n      low:\n        description: Simple\n        default_model: qwen\n        models: [qwen]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`,
     )
     const oldPrimary = process.env.CAGENT_CONFIG
     process.env.CAGENT_CONFIG = primary

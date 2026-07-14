@@ -19,8 +19,7 @@ function writeTempConfig(content: string): { file: string; cleanup: () => void }
 
 describe('doctor effort reporting', () => {
   it('reports opencode-go effort as effective with run --variant', () => {
-    const { file, cleanup } = writeTempConfig(`version: 2
-default_agent: opencode-go
+    const { file, cleanup } = writeTempConfig(`default_agent: opencode-go
 default_level: mid
 agents:
   opencode-go:
@@ -52,8 +51,7 @@ multiplexer:
   })
 
   it('reports codex effort as passed via -c model_reasoning_effort', () => {
-    const { file, cleanup } = writeTempConfig(`version: 2
-default_agent: codex
+    const { file, cleanup } = writeTempConfig(`default_agent: codex
 default_level: mid
 agents:
   codex:
@@ -85,8 +83,7 @@ multiplexer:
   })
 
   it('reports multi-agent config with different efforts correctly', () => {
-    const { file, cleanup } = writeTempConfig(`version: 2
-default_agent: opencode-go
+    const { file, cleanup } = writeTempConfig(`default_agent: opencode-go
 default_level: mid
 agents:
   opencode-go:
@@ -163,8 +160,7 @@ multiplexer:
   })
 
   it('does not report effort when not configured', () => {
-    const { file, cleanup } = writeTempConfig(`version: 2
-default_agent: opencode-go
+    const { file, cleanup } = writeTempConfig(`default_agent: opencode-go
 default_level: mid
 agents:
   opencode-go:
@@ -192,8 +188,7 @@ multiplexer:
 
 describe('doctor agent resolution', () => {
   it('inspects the specified agent when agentId is passed', () => {
-    const { file, cleanup } = writeTempConfig(`version: 2
-default_agent: codex
+    const { file, cleanup } = writeTempConfig(`default_agent: codex
 default_level: mid
 agents:
   opencode-go:
@@ -230,8 +225,7 @@ multiplexer:
   })
 
   it('falls back to default_agent when agentId is not passed', () => {
-    const { file, cleanup } = writeTempConfig(`version: 2
-default_agent: codex
+    const { file, cleanup } = writeTempConfig(`default_agent: codex
 default_level: mid
 agents:
   opencode-go:
@@ -267,8 +261,7 @@ multiplexer:
   })
 
   it('errors when specified agentId is not in config', () => {
-    const { file, cleanup } = writeTempConfig(`version: 2
-default_agent: codex
+    const { file, cleanup } = writeTempConfig(`default_agent: codex
 default_level: mid
 agents:
   codex:

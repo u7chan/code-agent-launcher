@@ -19,7 +19,6 @@ import {
 
 function makeConfig(): Config {
   return {
-    version: 2,
     default_agent: 'opencode-go',
     default_level: 'mid',
     agents: {
@@ -248,7 +247,6 @@ describe('resolveModel', () => {
   // --- effort resolution ---
   function makeEffortConfig(): Config {
     return {
-      version: 2,
       default_agent: 'opencode-go',
       default_level: 'mid',
       agents: {
