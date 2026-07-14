@@ -23,8 +23,7 @@ function clearEffortEnv() {
   delete process.env.CAGENT_EFFORT
 }
 
-const codexConfig = `version: 2
-default_agent: codex
+const codexConfig = `default_agent: codex
 default_level: mid
 agents:
   codex:
@@ -41,8 +40,7 @@ multiplexer:
   herdr: { enabled: true }
 `
 
-const opencodeConfig = `version: 2
-default_agent: opencode-go
+const opencodeConfig = `default_agent: opencode-go
 default_level: mid
 agents:
   opencode-go:
@@ -72,7 +70,7 @@ describe('validateMuxAdapter', () => {
 
   it('throws MuxAdapterError for disabled adapter', () => {
     const { file, cleanup } = writeTempConfig(
-      `version: 2\ndefault_agent: opencode-go\ndefault_level: low\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      low:\n        description: Simple\n        default_model: qwen\n        models: [qwen]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: false }\n`,
+      `default_agent: opencode-go\ndefault_level: low\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      low:\n        description: Simple\n        default_model: qwen\n        models: [qwen]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: false }\n`,
     )
     try {
       const config = loadConfig(file)
@@ -84,7 +82,7 @@ describe('validateMuxAdapter', () => {
 
   it('throws MuxAdapterError for unknown adapter', () => {
     const { file, cleanup } = writeTempConfig(
-      `version: 2\ndefault_agent: opencode-go\ndefault_level: low\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      low:\n        description: Simple\n        default_model: qwen\n        models: [qwen]\nmultiplexer:\n  default: unknown\n  unknown: { enabled: true }\n`,
+      `default_agent: opencode-go\ndefault_level: low\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      low:\n        description: Simple\n        default_model: qwen\n        models: [qwen]\nmultiplexer:\n  default: unknown\n  unknown: { enabled: true }\n`,
     )
     try {
       const config = loadConfig(file)

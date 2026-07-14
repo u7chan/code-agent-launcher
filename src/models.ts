@@ -1,6 +1,7 @@
 import { Command } from 'commander'
-import { runCommand, runCommandFormat } from './command.js'
-import { loadConfig } from './config.js'
+import { getAgentAdapter } from './agents/registry.js'
+import { formatCommandSpec, runCommandSpec } from './command.js'
+import { getAgent, loadConfig } from './config.js'
 
 export interface ModelsCommandOptions {
   refresh?: boolean
@@ -10,23 +11,34 @@ export function createModelsCommand(): Command {
   const command = new Command('models')
 
   command
-    .description('List available OpenCode Go models')
+    .description('List available models')
     .option('--refresh', 'Refresh the model list from the provider')
     .action(async (options: ModelsCommandOptions) => {
       const config = loadConfig()
       const dryRun = command.parent?.opts().dryRun === true
-      const args = ['models', config.provider]
+      const globals = command.optsWithGlobals() as { agent?: string }
+      const effectiveAgentId = globals.agent ?? process.env.CAGENT_AGENT ?? config.default_agent
+      const agent = getAgent(config, effectiveAgentId)
+      const adapter = getAgentAdapter(effectiveAgentId)
+      const provider = agent.provider
 
-      if (options.refresh) {
-        args.push('--refresh')
+      if (!adapter.buildModelListCommand) {
+        console.error(`Error: agent "${effectiveAgentId}" does not support listing models`)
+        process.exit(1)
       }
 
+      const spec = adapter.buildModelListCommand({
+        bin: agent.bin,
+        provider,
+        refresh: options.refresh,
+      })
+
       if (dryRun) {
-        console.log(runCommandFormat(config.opencode_bin, args))
+        console.log(formatCommandSpec(spec))
         return
       }
 
-      const result = await runCommand(config.opencode_bin, args, {
+      const result = await runCommandSpec(spec, {
         stdio: 'inherit',
       })
 

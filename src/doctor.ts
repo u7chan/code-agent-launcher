@@ -2,11 +2,11 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import chalk from 'chalk'
 import { Command } from 'commander'
+import { getAgentAdapter } from './agents/registry.js'
 import { findExecutable } from './command.js'
 import {
   type Config,
   ConfigError,
-  getAgent,
   loadConfig,
   type MultiplexerAdapter,
   resolveConfigPath,
@@ -36,7 +36,7 @@ export interface DoctorOptions {
   refresh?: boolean
 }
 
-export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
+export function runDoctor(options: DoctorOptions = {}, agentId?: string): CheckResult[] {
   const results: CheckResult[] = []
   const configFile = resolveConfigPath()
 
@@ -58,40 +58,47 @@ export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
     return results
   }
 
-  // 3. opencode_bin in PATH
-  const opencodePath = findExecutable(config.opencode_bin)
-  if (opencodePath) {
-    results.push(ok(`opencode binary found: ${opencodePath}`))
-  } else {
-    results.push(error(`opencode binary not found in PATH: ${config.opencode_bin}`))
+  const effectiveAgentId = agentId ?? config.default_agent
+  const activeAgent = config.agents[effectiveAgentId]
+  if (!activeAgent) {
+    results.push(error(`agent "${effectiveAgentId}" is not defined in config.agents`))
+    return results
   }
 
-  // 4. provider defined
-  if (config.provider && config.provider.length > 0) {
-    results.push(ok(`provider configured: ${config.provider}`))
+  // 3. agent bin in PATH
+  const binPath = findExecutable(activeAgent.bin)
+  if (binPath) {
+    results.push(ok(`${effectiveAgentId} binary found: ${binPath}`))
+  } else {
+    results.push(error(`${effectiveAgentId} binary not found in PATH: ${activeAgent.bin}`))
+  }
+
+  // 4. agent provider defined
+  const provider = activeAgent.provider
+  if (provider.length > 0) {
+    results.push(ok(`provider configured: ${provider}`))
   } else {
     results.push(error('provider is not defined'))
   }
 
+  const activeLevels = activeAgent.levels
+
   // 5. default_level exists
-  if (config.levels[config.default_level]) {
+  if (activeLevels[config.default_level]) {
     results.push(ok(`default_level exists: ${config.default_level}`))
   } else {
     results.push(error(`default_level "${config.default_level}" is not defined in levels`))
   }
 
   // 6-8. per level checks
-  for (const [levelName, level] of Object.entries(config.levels)) {
+  for (const [levelName, level] of Object.entries(activeLevels)) {
     if (level.default_model && level.default_model.length > 0) {
       results.push(ok(`level "${levelName}" default_model defined: ${level.default_model}`))
     } else {
       results.push(error(`level "${levelName}" default_model is not defined`))
     }
 
-    const normalizedDefault = normalizeAgentModelId(
-      level.default_model,
-      getAgent(config, config.default_agent ?? 'opencode-go'),
-    )
+    const normalizedDefault = normalizeAgentModelId(level.default_model, activeAgent)
     if (level.models.includes(level.default_model)) {
       results.push(ok(`level "${levelName}" default_model is in models: ${level.default_model}`))
     } else {
@@ -105,12 +112,9 @@ export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
 
   // 9. model id normalization
   try {
-    const allModels = collectAllModels(config)
+    const allModels = collectAllModels(config, effectiveAgentId)
     for (const model of allModels) {
-      const normalized = normalizeAgentModelId(
-        model,
-        getAgent(config, config.default_agent ?? 'opencode-go'),
-      )
+      const normalized = normalizeAgentModelId(model, activeAgent)
       results.push(ok(`model id normalized: ${model} -> ${normalized}`))
     }
   } catch (err) {
@@ -118,34 +122,48 @@ export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
     results.push(error(`model id normalization failed: ${message}`))
   }
 
-  // 10. opencode models opencode-go executable
+  // 10. models list via agent bin
   let availableModels: string[] = []
-  if (opencodePath) {
-    const modelArgs = ['models', config.provider]
-    if (options.refresh) {
-      modelArgs.push('--refresh')
-    }
-    const result = spawnSync(opencodePath, modelArgs, {
-      shell: false,
-      stdio: 'pipe',
-      encoding: 'utf-8',
-    })
-    if (result.status === 0) {
-      const refreshLabel = options.refresh ? ' (refreshed)' : ''
-      results.push(ok(`opencode models ${config.provider} executed successfully${refreshLabel}`))
-      availableModels = parseModelList(result.stdout, config.provider)
-    } else {
+  if (binPath) {
+    const agentAdapter = getAgentAdapter(effectiveAgentId)
+    if (!agentAdapter.buildModelListCommand) {
       results.push(
-        error(`opencode models ${config.provider} failed (exit ${result.status ?? 'unknown'})`),
+        warn(
+          `skipped ${effectiveAgentId} models check because the agent does not support model listing`,
+        ),
       )
+    } else {
+      const spec = agentAdapter.buildModelListCommand({
+        bin: activeAgent.bin,
+        provider,
+        refresh: options.refresh,
+      })
+      const result = spawnSync(binPath, spec.args, {
+        shell: false,
+        stdio: 'pipe',
+        encoding: 'utf-8',
+      })
+      if (result.status === 0) {
+        const refreshLabel = options.refresh ? ' (refreshed)' : ''
+        results.push(
+          ok(`${effectiveAgentId} models ${provider} executed successfully${refreshLabel}`),
+        )
+        availableModels = parseModelList(result.stdout, provider)
+      } else {
+        results.push(
+          error(
+            `${effectiveAgentId} models ${provider} failed (exit ${result.status ?? 'unknown'})`,
+          ),
+        )
+      }
     }
   } else {
-    results.push(warn(`skipped opencode models check because opencode binary is not available`))
+    results.push(warn(`skipped ${effectiveAgentId} models check because binary is not available`))
   }
 
   // 11. config models exist in actual list
   if (availableModels.length > 0) {
-    const configuredModels = collectAllFullModelIds(config)
+    const configuredModels = collectAllFullModelIds(config, effectiveAgentId)
     for (const model of configuredModels) {
       if (availableModels.includes(model)) {
         results.push(ok(`configured model exists in provider: ${model}`))
@@ -214,7 +232,7 @@ export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
   }
 
   // 16. agent levels with effort
-  for (const [agentId, agentCfg] of Object.entries(config.agents ?? {})) {
+  for (const [agentId, agentCfg] of Object.entries(config.agents)) {
     for (const [levelName, level] of Object.entries(agentCfg.levels)) {
       if (level.effort) {
         if (agentId === 'opencode-go') {
@@ -279,7 +297,9 @@ export function createDoctorCommand(): Command {
     .description('Validate environment, configuration, and model definitions')
     .option('--refresh', 'Refresh the provider model list before checking')
     .action((options: DoctorCommandOptions) => {
-      const results = runDoctor({ refresh: options.refresh === true })
+      const globals = command.optsWithGlobals() as { agent?: string }
+      const effectiveAgentId = globals.agent ?? process.env.CAGENT_AGENT ?? undefined
+      const results = runDoctor({ refresh: options.refresh === true }, effectiveAgentId)
       printResults(results)
       if (hasErrors(results)) {
         process.exit(1)

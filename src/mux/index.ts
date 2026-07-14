@@ -50,7 +50,7 @@ export function resolveMuxCommand(
 
   validateMuxAdapter(config, adapterName)
 
-  const agentId = muxOpts.agent ?? process.env.CAGENT_AGENT ?? config.default_agent ?? 'opencode-go'
+  const agentId = muxOpts.agent ?? process.env.CAGENT_AGENT ?? config.default_agent
   const resolved = resolveModel(config, {
     cliModel: muxOpts.model,
     cliLevel: level,

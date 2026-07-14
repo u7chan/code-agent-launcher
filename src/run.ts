@@ -85,8 +85,7 @@ export function createRunCommand(): Command {
       const dryRun = globals.dryRun === true
 
       const config = loadConfig()
-      const effectiveAgentId =
-        globals.agent ?? process.env.CAGENT_AGENT ?? config.default_agent ?? 'opencode-go'
+      const effectiveAgentId = globals.agent ?? process.env.CAGENT_AGENT ?? config.default_agent
       const agent = getAgent(config, effectiveAgentId)
       const adapter = getAgentAdapter(effectiveAgentId)
       const resolved = resolveModel(config, {

@@ -6,7 +6,7 @@ const baseContext = {
   level: 'high',
   cwd: '/tmp',
   extraArgs: ['hello'],
-  config: { bin: 'codex', model_id_prefix: false, levels: {} },
+  config: { bin: 'codex', provider: 'codex', model_id_prefix: false, levels: {} },
 }
 
 describe('serializeTomlString', () => {
@@ -73,6 +73,10 @@ describe('serializeTomlString', () => {
     expect(serializeTomlString('\x00high\b\n\x1Flow\r\f\x7F')).toBe(
       '\\u0000high\\b\\n\\u001flow\\r\\f\\u007f',
     )
+  })
+
+  it('does not provide buildModelListCommand', () => {
+    expect(codexAdapter.buildModelListCommand).toBeUndefined()
   })
 })
 

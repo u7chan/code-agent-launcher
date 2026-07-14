@@ -186,6 +186,75 @@ exec ${process.execPath} "$@"`,
     expect(scores).toContain('"not_provided"')
   })
 
+  it('marks models check as skip when the target agent lacks model listing capability', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrPassing(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: gpt-5.6-terra\n  observed_cli_model: gpt-5.6-terra\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    expect(runExtended(directory, reportDir, ['--attestation', attestation]).status).toBe(0)
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).toContain('"models": "skip"')
+    expect(scores).not.toContain('"models": "fail"')
+    const report = readFileSync(join(reportDir, 'report.md'), 'utf8')
+    expect(report).toContain('- Models: skip')
+  })
+
+  it('marks models check as pass when a supported agent lists models successfully', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(directory, 'opencode', 'echo opencode-go/deepseek-v4-pro')
+    writeFakeHerdrPassing(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: opencode-go/deepseek-v4-pro\n  observed_cli_model: opencode-go/deepseek-v4-pro\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    expect(
+      runExtended(directory, reportDir, ['--agent', 'opencode-go', '--attestation', attestation])
+        .status,
+    ).toBe(0)
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).toContain('"models": "pass"')
+    expect(scores).not.toContain('"models": "skip"')
+  })
+
+  it('fails models check when a supported agent command exits non-zero', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
+    writeFakeBun(directory)
+    writeFake(directory, 'codex', 'echo codex 1.0')
+    writeFake(
+      directory,
+      'opencode',
+      'if [ "$1" = "models" ]; then echo "models unavailable" >&2; exit 1; fi\necho opencode-go/deepseek-v4-pro',
+    )
+    writeFakeHerdrPassing(directory)
+    const attestation = join(directory, 'attestation.yaml')
+    writeFileSync(
+      attestation,
+      'manual_attestation:\n  method: herdr-pane\n  verified_by: u7chan\n  verified_at: 2026-07-11T00:00:00+09:00\n  expected_model: opencode-go/deepseek-v4-pro\n  observed_cli_model: opencode-go/deepseek-v4-pro\n  status: pass\n',
+    )
+    const reportDir = join(directory, 'report')
+    const result = runExtended(directory, reportDir, [
+      '--agent',
+      'opencode-go',
+      '--attestation',
+      attestation,
+    ])
+    expect(result.status).toBe(1)
+    const scores = readFileSync(join(reportDir, 'scores.json'), 'utf8')
+    expect(scores).toContain('"models": "fail"')
+    expect(scores).not.toContain('"models": "skip"')
+  })
+
   it('--live alone does not launch herdr and fails with diagnostic', () => {
     const directory = mkdtempSync(join(tmpdir(), 'cagent-fake-cli-'))
     writeFakeBun(directory)

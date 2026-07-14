@@ -8,27 +8,43 @@ function resolveConfigPath(): string {
   return process.env.CAGENT_CONFIG ?? configPath()
 }
 
-export const DEFAULT_CONFIG = `version: 2
-
-default_agent: opencode-go
+export const DEFAULT_CONFIG = `default_agent: codex
 default_level: mid
 agents:
+  codex:
+    bin: codex
+    provider: codex
+    model_id_prefix: false
+    levels:
+      low:
+        description: Fast and affordable tasks
+        default_model: gpt-5.6-luna
+        models: [gpt-5.6-luna]
+      mid:
+        description: Balanced everyday tasks
+        default_model: gpt-5.6-terra
+        models: [gpt-5.6-terra]
+      high:
+        description: Frontier agentic coding tasks
+        default_model: gpt-5.6-sol
+        models: [gpt-5.6-sol]
   opencode-go:
     bin: opencode
     provider: opencode-go
+    model_id_prefix: true
     levels:
       low:
-        description: Cheap and repetitive tasks
+        description: Fast and affordable tasks
         default_model: deepseek-v4-flash
-        models: [deepseek-v4-flash, mimo-v2.5]
+        models: [deepseek-v4-flash]
       mid:
-        description: Normal implementation and maintenance
+        description: Balanced everyday tasks
         default_model: deepseek-v4-pro
-        models: [deepseek-v4-pro, qwen3.7-plus, qwen3.6-plus]
+        models: [deepseek-v4-pro]
       high:
-        description: Complex design, investigation, and high-risk changes
+        description: Frontier agentic coding tasks
         default_model: kimi-k2.7-code
-        models: [kimi-k2.7-code, glm-5.2, qwen3.7-max]
+        models: [kimi-k2.7-code]
 
 multiplexer:
   default: herdr

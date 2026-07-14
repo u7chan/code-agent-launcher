@@ -19,8 +19,7 @@ function writeTempConfig(content: string): { file: string; cleanup: () => void }
 
 describe('doctor effort reporting', () => {
   it('reports opencode-go effort as effective with run --variant', () => {
-    const { file, cleanup } = writeTempConfig(`version: 2
-default_agent: opencode-go
+    const { file, cleanup } = writeTempConfig(`default_agent: opencode-go
 default_level: mid
 agents:
   opencode-go:
@@ -52,8 +51,7 @@ multiplexer:
   })
 
   it('reports codex effort as passed via -c model_reasoning_effort', () => {
-    const { file, cleanup } = writeTempConfig(`version: 2
-default_agent: codex
+    const { file, cleanup } = writeTempConfig(`default_agent: codex
 default_level: mid
 agents:
   codex:
@@ -85,8 +83,7 @@ multiplexer:
   })
 
   it('reports multi-agent config with different efforts correctly', () => {
-    const { file, cleanup } = writeTempConfig(`version: 2
-default_agent: opencode-go
+    const { file, cleanup } = writeTempConfig(`default_agent: opencode-go
 default_level: mid
 agents:
   opencode-go:
@@ -163,8 +160,7 @@ multiplexer:
   })
 
   it('does not report effort when not configured', () => {
-    const { file, cleanup } = writeTempConfig(`version: 2
-default_agent: opencode-go
+    const { file, cleanup } = writeTempConfig(`default_agent: opencode-go
 default_level: mid
 agents:
   opencode-go:
@@ -184,6 +180,137 @@ multiplexer:
       const results = runDoctor()
       const effortResults = results.filter((r) => r.message.includes('effort'))
       expect(effortResults.length).toBe(0)
+    } finally {
+      cleanup()
+    }
+  })
+})
+
+describe('doctor agent resolution', () => {
+  it('inspects the specified agent when agentId is passed', () => {
+    const { file, cleanup } = writeTempConfig(`default_agent: codex
+default_level: mid
+agents:
+  opencode-go:
+    bin: opencode
+    provider: opencode-go
+    levels:
+      mid:
+        description: Normal
+        default_model: deepseek-v4-pro
+        models: [deepseek-v4-pro]
+  codex:
+    bin: codex
+    provider: codex
+    model_id_prefix: false
+    levels:
+      mid:
+        description: Balanced
+        default_model: gpt-5.6-terra
+        models: [gpt-5.6-terra]
+multiplexer:
+  default: herdr
+  herdr: { enabled: true }
+`)
+    process.env.CAGENT_CONFIG = file
+    try {
+      const results = runDoctor({}, 'opencode-go')
+
+      const binMessages = results.filter((r) => r.message.includes('binary'))
+      expect(binMessages.some((r) => r.message.includes('opencode-go'))).toBe(true)
+      expect(binMessages.some((r) => r.message.includes('codex'))).toBe(false)
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('stops at config validation when an agent provider is missing', () => {
+    const { file, cleanup } = writeTempConfig(`default_agent: opencode-go
+default_level: mid
+agents:
+  opencode-go:
+    bin: opencode
+    levels:
+      mid:
+        description: Normal
+        default_model: deepseek-v4-pro
+        models: [deepseek-v4-pro]
+multiplexer:
+  default: herdr
+  herdr: { enabled: true }
+`)
+    process.env.CAGENT_CONFIG = file
+    try {
+      const results = runDoctor()
+
+      expect(results).toHaveLength(2)
+      expect(results[1]).toEqual({
+        status: 'ERROR',
+        message: 'config validation failed: agent "opencode-go".provider must be a string',
+      })
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('falls back to default_agent when agentId is not passed', () => {
+    const { file, cleanup } = writeTempConfig(`default_agent: codex
+default_level: mid
+agents:
+  opencode-go:
+    bin: opencode
+    provider: opencode-go
+    levels:
+      mid:
+        description: Normal
+        default_model: deepseek-v4-pro
+        models: [deepseek-v4-pro]
+  codex:
+    bin: codex
+    provider: codex
+    model_id_prefix: false
+    levels:
+      mid:
+        description: Balanced
+        default_model: gpt-5.6-terra
+        models: [gpt-5.6-terra]
+multiplexer:
+  default: herdr
+  herdr: { enabled: true }
+`)
+    process.env.CAGENT_CONFIG = file
+    try {
+      const results = runDoctor()
+
+      const binMessages = results.filter((r) => r.message.includes('binary'))
+      expect(binMessages.some((r) => r.message.includes('codex'))).toBe(true)
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('errors when specified agentId is not in config', () => {
+    const { file, cleanup } = writeTempConfig(`default_agent: codex
+default_level: mid
+agents:
+  codex:
+    bin: codex
+    provider: codex
+    model_id_prefix: false
+    levels:
+      mid:
+        description: Balanced
+        default_model: gpt-5.6-terra
+        models: [gpt-5.6-terra]
+multiplexer:
+  default: herdr
+  herdr: { enabled: true }
+`)
+    process.env.CAGENT_CONFIG = file
+    try {
+      const results = runDoctor({}, 'nonexistent')
+      const errorResults = results.filter((r) => r.status === 'ERROR')
+      expect(errorResults.some((r) => r.message.includes('nonexistent'))).toBe(true)
     } finally {
       cleanup()
     }

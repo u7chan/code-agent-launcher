@@ -585,7 +585,7 @@ function runHerdrLive(
     level,
     cwd,
     extraArgs: [prompt],
-    config: { bin: adapter.defaultBin, levels: {} },
+    config: { bin: adapter.defaultBin, provider: agent, levels: {} },
   })
   const formattedCommand = formatCommandSpec(commandSpec)
   const commandSummary =
@@ -698,8 +698,16 @@ function smokeExtended(args: string[], reportDir: string): number {
       ? run('node', [builtEntryPoint, 'doctor'], root, env)
       : { status: 1, stdout: '', stderr: cli.diagnostic ?? 'build failed' }
 
-  const models =
-    cli.status === 'pass' ? run('node', [builtEntryPoint, 'models'], root, env) : doctor
+  const supportsModelListing = Boolean(getAgentAdapter(agent).buildModelListCommand)
+  let modelsStatus: Status | 'skip'
+  if (cli.status !== 'pass') {
+    modelsStatus = 'fail'
+  } else if (!supportsModelListing) {
+    modelsStatus = 'skip'
+  } else {
+    const models = run('node', [builtEntryPoint, '--agent', agent, 'models'], root, env)
+    modelsStatus = models.status === 0 ? 'pass' : 'fail'
+  }
 
   const muxDryRun =
     cli.status === 'pass'
@@ -729,7 +737,7 @@ function smokeExtended(args: string[], reportDir: string): number {
     const checkStatus = {
       cli: cli.status,
       doctor: doctor.status === 0 ? ('pass' as Status) : ('fail' as Status),
-      models: models.status === 0 ? ('pass' as Status) : ('fail' as Status),
+      models: modelsStatus,
       mux_routing: routing,
     }
 
@@ -789,7 +797,7 @@ function smokeExtended(args: string[], reportDir: string): number {
   const checks = {
     cli,
     doctor: doctor.status === 0 ? ('pass' as Status) : ('fail' as Status),
-    models: models.status === 0 ? ('pass' as Status) : ('fail' as Status),
+    models: modelsStatus,
     mux_routing: routing,
   }
 
@@ -800,7 +808,7 @@ function smokeExtended(args: string[], reportDir: string): number {
   const passed =
     cli.status === 'pass' &&
     checks.doctor === 'pass' &&
-    checks.models === 'pass' &&
+    (checks.models === 'pass' || checks.models === 'skip') &&
     checks.mux_routing === 'pass' &&
     attestation.status === 'pass' &&
     herdrStepsAllPass
