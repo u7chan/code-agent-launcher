@@ -115,6 +115,9 @@ Codexのモデル対応は `low=gpt-5.6-luna`、`mid=gpt-5.6-terra`、`high=gpt-
 
 ## Release 事前検証
 
+Releaseに使用するGitHub repository保護と、失敗時の復旧方針は
+[`docs/releasing.md`](docs/releasing.md) を参照してください。
+
 通常 CI は Bun 1.3.10 を使い、Linux x64 standalone の build・pack、archive
 構造、SHA-256 checksum、隔離 smoke test を検証します。ローカルでは Linux x64
 環境で同じ検証を次の command から実行できます。
