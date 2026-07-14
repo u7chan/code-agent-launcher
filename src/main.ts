@@ -40,8 +40,7 @@ export function createMainCommand(): Command {
       const envEffort = process.env.CAGENT_EFFORT
 
       const config = loadConfig()
-      const agentId =
-        options.agent ?? process.env.CAGENT_AGENT ?? config.default_agent ?? 'opencode-go'
+      const agentId = options.agent ?? process.env.CAGENT_AGENT ?? config.default_agent
       const agent = getAgent(config, agentId)
       const adapter = getAgentAdapter(agentId)
       const resolved = resolveModel(config, {

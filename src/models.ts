@@ -10,23 +10,25 @@ export function createModelsCommand(): Command {
   const command = new Command('models')
 
   command
-    .description('List available OpenCode Go models')
+    .description('List available models')
     .option('--refresh', 'Refresh the model list from the provider')
     .action(async (options: ModelsCommandOptions) => {
       const config = loadConfig()
       const dryRun = command.parent?.opts().dryRun === true
-      const args = ['models', config.provider]
+      const agent = config.agents[config.default_agent]
+      const provider = agent.provider ?? config.default_agent
+      const args = ['models', provider]
 
       if (options.refresh) {
         args.push('--refresh')
       }
 
       if (dryRun) {
-        console.log(runCommandFormat(config.opencode_bin, args))
+        console.log(runCommandFormat(agent.bin, args))
         return
       }
 
-      const result = await runCommand(config.opencode_bin, args, {
+      const result = await runCommand(agent.bin, args, {
         stdio: 'inherit',
       })
 

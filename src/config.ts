@@ -28,16 +28,12 @@ export interface MultiplexerConfig {
   [adapter: string]: string | MultiplexerAdapter | undefined
 }
 
-/** Normalized v2 configuration. Legacy fields are retained for API compatibility. */
 export interface Config {
   version: number
-  default_agent?: string
+  default_agent: string
   default_level: string
-  agents?: Record<string, AgentConfig>
+  agents: Record<string, AgentConfig>
   multiplexer: MultiplexerConfig
-  opencode_bin: string
-  provider: string
-  levels: Record<string, LevelConfig>
 }
 
 function getConfigHome(): string {
@@ -115,49 +111,43 @@ function mux(raw: unknown): MultiplexerConfig {
   return out
 }
 function normalize(root: Record<string, unknown>): Config {
-  const version = typeof root.version === 'number' ? root.version : 1
+  const version = root.version
+  if (typeof version !== 'number') {
+    throw new ConfigError('config must have a numeric version field')
+  }
+  if (version !== 2) {
+    throw new ConfigError(`unsupported config version: ${version}. Only version 2 is supported.`)
+  }
+
   const multiplexer = mux(root.multiplexer)
-  let agents: Record<string, AgentConfig>
-  let defaultAgent: string
-  if (version >= 2) {
-    agents = {}
-    for (const [id, raw] of Object.entries(record(root.agents, 'agents must be an object'))) {
-      const agent = record(raw, `agent "${id}" must be an object`)
-      agents[id] = {
-        bin: string(agent.bin, `agent "${id}".bin must be a string`),
-        provider: typeof agent.provider === 'string' ? agent.provider : undefined,
-        model_id_prefix: agent.model_id_prefix !== false,
-        levels: levels(agent.levels),
-      }
-    }
-    defaultAgent = string(root.default_agent, 'default_agent must be a string')
-  } else {
-    defaultAgent = 'opencode-go'
-    agents = {
-      'opencode-go': {
-        bin: string(root.opencode_bin, 'opencode_bin must be a string'),
-        provider: string(root.provider, 'provider must be a string'),
-        model_id_prefix: true,
-        levels: levels(root.levels),
-      },
+
+  const agents: Record<string, AgentConfig> = {}
+  for (const [id, raw] of Object.entries(record(root.agents, 'agents must be an object'))) {
+    const agent = record(raw, `agent "${id}" must be an object`)
+    agents[id] = {
+      bin: string(agent.bin, `agent "${id}".bin must be a string`),
+      provider: typeof agent.provider === 'string' ? agent.provider : undefined,
+      model_id_prefix: agent.model_id_prefix !== false,
+      levels: levels(agent.levels),
     }
   }
+
+  const defaultAgent = string(root.default_agent, 'default_agent must be a string')
   const active = agents[defaultAgent]
   if (!active) throw new ConfigError(`default_agent "${defaultAgent}" is not defined in agents`)
+
   const defaultLevel = string(root.default_level, 'default_level must be a string')
   if (!active.levels[defaultLevel])
     throw new ConfigError(
       `default_level "${defaultLevel}" is not defined in levels for agent "${defaultAgent}"`,
     )
+
   return {
     version: 2,
     default_agent: defaultAgent,
     default_level: defaultLevel,
     agents,
     multiplexer,
-    opencode_bin: active.bin,
-    provider: active.provider ?? 'opencode-go',
-    levels: active.levels,
   }
 }
 export function loadConfig(path?: string): Config {
@@ -180,13 +170,10 @@ export function loadConfig(path?: string): Config {
   }
 }
 export function getAgent(config: Config, id: string): AgentConfig {
-  const agents = config.agents ?? {
-    'opencode-go': { bin: config.opencode_bin, provider: config.provider, levels: config.levels },
-  }
-  const agent = agents[id]
+  const agent = config.agents[id]
   if (agent) return agent
   throw new ConfigError(
-    `unknown agent: ${id}\n\nAvailable agents:\n${Object.keys(agents)
+    `unknown agent: ${id}\n\nAvailable agents:\n${Object.keys(config.agents)
       .map((name) => `  ${name}`)
       .join('\n')}`,
   )

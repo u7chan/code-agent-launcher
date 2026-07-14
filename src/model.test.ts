@@ -19,25 +19,30 @@ import {
 
 function makeConfig(): Config {
   return {
-    version: 1,
-    opencode_bin: 'opencode',
-    provider: 'opencode-go',
+    version: 2,
+    default_agent: 'opencode-go',
     default_level: 'mid',
-    levels: {
-      low: {
-        description: 'Cheap tasks',
-        default_model: 'deepseek-v4-flash',
-        models: ['deepseek-v4-flash', 'mimo-v2.5'],
-      },
-      mid: {
-        description: 'Normal tasks',
-        default_model: 'deepseek-v4-pro',
-        models: ['deepseek-v4-pro', 'qwen3.7-plus'],
-      },
-      high: {
-        description: 'Complex tasks',
-        default_model: 'kimi-k2.7-code',
-        models: ['kimi-k2.7-code', 'glm-5.2'],
+    agents: {
+      'opencode-go': {
+        bin: 'opencode',
+        provider: 'opencode-go',
+        levels: {
+          low: {
+            description: 'Cheap tasks',
+            default_model: 'deepseek-v4-flash',
+            models: ['deepseek-v4-flash', 'mimo-v2.5'],
+          },
+          mid: {
+            description: 'Normal tasks',
+            default_model: 'deepseek-v4-pro',
+            models: ['deepseek-v4-pro', 'qwen3.7-plus'],
+          },
+          high: {
+            description: 'Complex tasks',
+            default_model: 'kimi-k2.7-code',
+            models: ['kimi-k2.7-code', 'glm-5.2'],
+          },
+        },
       },
     },
     multiplexer: {
@@ -197,7 +202,6 @@ describe('resolveModel', () => {
       },
     }
     config.default_level = 'low'
-    config.levels = config.agents.codex.levels
 
     expect(resolveModel(config, { agent: 'codex', cliLevel: 'low' }).modelId).toBe('gpt-5.6-luna')
   })
@@ -205,12 +209,29 @@ describe('resolveModel', () => {
   it('removes a Codex provider prefix from an explicit model', () => {
     const config = makeConfig()
     config.default_agent = 'codex'
+    config.default_level = 'mid'
     config.agents = {
       codex: {
         bin: 'codex',
         provider: 'codex',
         model_id_prefix: false,
-        levels: config.levels,
+        levels: {
+          low: {
+            description: 'Fast',
+            default_model: 'gpt-5.6-luna',
+            models: ['gpt-5.6-luna'],
+          },
+          mid: {
+            description: 'Balanced',
+            default_model: 'gpt-5.6-terra',
+            models: ['gpt-5.6-terra'],
+          },
+          high: {
+            description: 'Frontier',
+            default_model: 'gpt-5.6-sol',
+            models: ['gpt-5.6-sol'],
+          },
+        },
       },
     }
 
@@ -219,31 +240,41 @@ describe('resolveModel', () => {
     )
   })
 
+  it('throws ModelError when agent is not defined in config', () => {
+    const config = makeConfig()
+    expect(() => resolveModel(config, { agent: 'nonexistent' })).toThrow('unknown agent')
+  })
+
   // --- effort resolution ---
   function makeEffortConfig(): Config {
     return {
-      version: 1,
-      opencode_bin: 'opencode',
-      provider: 'opencode-go',
+      version: 2,
+      default_agent: 'opencode-go',
       default_level: 'mid',
-      levels: {
-        low: {
-          description: 'Cheap',
-          default_model: 'deepseek-v4-flash',
-          models: ['deepseek-v4-flash'],
-          effort: 'low-effort',
-        },
-        mid: {
-          description: 'Normal',
-          default_model: 'deepseek-v4-pro',
-          models: ['deepseek-v4-pro'],
-          effort: 'medium-effort',
-        },
-        high: {
-          description: 'Complex',
-          default_model: 'kimi-k2.7-code',
-          models: ['kimi-k2.7-code'],
-          effort: 'high-effort',
+      agents: {
+        'opencode-go': {
+          bin: 'opencode',
+          provider: 'opencode-go',
+          levels: {
+            low: {
+              description: 'Cheap',
+              default_model: 'deepseek-v4-flash',
+              models: ['deepseek-v4-flash'],
+              effort: 'low-effort',
+            },
+            mid: {
+              description: 'Normal',
+              default_model: 'deepseek-v4-pro',
+              models: ['deepseek-v4-pro'],
+              effort: 'medium-effort',
+            },
+            high: {
+              description: 'Complex',
+              default_model: 'kimi-k2.7-code',
+              models: ['kimi-k2.7-code'],
+              effort: 'high-effort',
+            },
+          },
         },
       },
       multiplexer: {

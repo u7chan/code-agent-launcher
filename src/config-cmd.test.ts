@@ -5,6 +5,25 @@ import { dirname, join } from 'node:path'
 import { configPath } from './config.js'
 import { createConfigCommand, DEFAULT_CONFIG } from './config-cmd.js'
 
+const v2Fixture = `version: 2
+default_agent: opencode-go
+default_level: mid
+agents:
+  opencode-go:
+    bin: opencode
+    provider: opencode-go
+    levels:
+      mid:
+        description: Normal
+        default_model: deepseek-v4-pro
+        models:
+          - deepseek-v4-pro
+multiplexer:
+  default: herdr
+  herdr:
+    enabled: true
+`
+
 describe('createConfigCommand', () => {
   let tmpDir: string
   let originalConfig: string | undefined
@@ -179,11 +198,7 @@ describe('createConfigCommand', () => {
     it('errors when editor exits with non-zero status', async () => {
       const path = configPath()
       mkdirSync(dirname(path), { recursive: true })
-      writeFileSync(
-        path,
-        `version: 1\nopencode_bin: opencode\nprovider: opencode-go\ndefault_level: mid\nlevels:\n  mid:\n    description: Normal\n    default_model: deepseek-v4-pro\n    models:\n      - deepseek-v4-pro\nmultiplexer:\n  default: herdr\n  herdr:\n    enabled: true\n`,
-        'utf-8',
-      )
+      writeFileSync(path, v2Fixture, 'utf-8')
       process.env.EDITOR = 'false'
       delete process.env.VISUAL
       const command = createConfigCommand()
@@ -199,11 +214,7 @@ describe('createConfigCommand', () => {
 
     it('respects CAGENT_CONFIG for edit path', async () => {
       const customPath = join(tmpDir, 'custom-edit.yaml')
-      writeFileSync(
-        customPath,
-        `version: 1\nopencode_bin: opencode\nprovider: opencode-go\ndefault_level: mid\nlevels:\n  mid:\n    description: Normal\n    default_model: deepseek-v4-pro\n    models:\n      - deepseek-v4-pro\nmultiplexer:\n  default: herdr\n  herdr:\n    enabled: true\n`,
-        'utf-8',
-      )
+      writeFileSync(customPath, v2Fixture, 'utf-8')
       process.env.CAGENT_CONFIG = customPath
       process.env.EDITOR = 'false'
       delete process.env.VISUAL

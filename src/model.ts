@@ -11,7 +11,7 @@ export interface ResolveOptions {
 }
 
 function agentConfig(config: Config, agent?: string) {
-  return getAgent(config, agent ?? config.default_agent ?? 'opencode-go')
+  return getAgent(config, agent ?? config.default_agent)
 }
 
 export class ModelError extends Error {
@@ -32,15 +32,20 @@ export function normalizeModelId(modelId: string, provider: string): string {
   return `${provider}/${trimmed}`
 }
 
+function resolveProvider(agent: AgentConfig): string {
+  if (agent.provider !== undefined) return agent.provider
+  throw new ModelError(`agent "${agent.bin}" must define a provider`)
+}
+
 export function normalizeAgentModelId(modelId: string, agent: AgentConfig): string {
   const trimmed = modelId.trim()
   if (trimmed.length === 0) {
     throw new ModelError('model id is empty')
   }
   if (agent.model_id_prefix === false) {
-    return stripProvider(trimmed, agent.provider ?? 'opencode-go')
+    return stripProvider(trimmed, resolveProvider(agent))
   }
-  return normalizeModelId(trimmed, agent.provider ?? 'opencode-go')
+  return normalizeModelId(trimmed, resolveProvider(agent))
 }
 
 export function stripProvider(modelId: string, provider: string): string {
@@ -74,9 +79,9 @@ export function collectAllFullModelIds(config: Config, agent?: string): string[]
 
 export function isKnownModel(modelId: string, config: Config, agent?: string): boolean {
   const selected = agentConfig(config, agent)
-  const provider = selected.provider ?? 'opencode-go'
+  const provider = resolveProvider(selected)
   const normalized = normalizeAgentModelId(modelId, selected)
-  const short = stripProvider(normalized, provider)
+  const short = provider ? stripProvider(normalized, provider) : normalized
 
   for (const level of Object.values(selected.levels)) {
     for (const model of level.models) {
