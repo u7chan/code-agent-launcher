@@ -74,6 +74,10 @@ describe('serializeTomlString', () => {
       '\\u0000high\\b\\n\\u001flow\\r\\f\\u007f',
     )
   })
+
+  it('does not provide buildModelListCommand', () => {
+    expect(codexAdapter.buildModelListCommand).toBeUndefined()
+  })
 })
 
 describe('codexAdapter', () => {

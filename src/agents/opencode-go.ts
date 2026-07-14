@@ -29,4 +29,9 @@ export const opencodeGoAdapter: CodingAgentAdapter = {
     args.push(...extraArgs)
     return { command: bin, args }
   },
+  buildModelListCommand: ({ bin, provider, refresh }) => {
+    const args = ['models', provider]
+    if (refresh) args.push('--refresh')
+    return { command: bin, args }
+  },
 }

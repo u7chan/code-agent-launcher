@@ -2,11 +2,11 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import chalk from 'chalk'
 import { Command } from 'commander'
+import { getAgentAdapter } from './agents/registry.js'
 import { findExecutable } from './command.js'
 import {
   type Config,
   ConfigError,
-  getAgent,
   loadConfig,
   type MultiplexerAdapter,
   resolveConfigPath,
@@ -36,7 +36,7 @@ export interface DoctorOptions {
   refresh?: boolean
 }
 
-export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
+export function runDoctor(options: DoctorOptions = {}, agentId?: string): CheckResult[] {
   const results: CheckResult[] = []
   const configFile = resolveConfigPath()
 
@@ -58,18 +58,23 @@ export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
     return results
   }
 
-  const activeAgent = config.agents[config.default_agent]
-
-  // 3. default_agent bin in PATH
-  const binPath = findExecutable(activeAgent.bin)
-  if (binPath) {
-    results.push(ok(`${config.default_agent} binary found: ${binPath}`))
-  } else {
-    results.push(error(`${config.default_agent} binary not found in PATH: ${activeAgent.bin}`))
+  const effectiveAgentId = agentId ?? config.default_agent
+  const activeAgent = config.agents[effectiveAgentId]
+  if (!activeAgent) {
+    results.push(error(`agent "${effectiveAgentId}" is not defined in config.agents`))
+    return results
   }
 
-  // 4. default_agent provider defined
-  const provider = activeAgent.provider ?? config.default_agent
+  // 3. agent bin in PATH
+  const binPath = findExecutable(activeAgent.bin)
+  if (binPath) {
+    results.push(ok(`${effectiveAgentId} binary found: ${binPath}`))
+  } else {
+    results.push(error(`${effectiveAgentId} binary not found in PATH: ${activeAgent.bin}`))
+  }
+
+  // 4. agent provider defined
+  const provider = activeAgent.provider ?? effectiveAgentId
   if (provider.length > 0) {
     results.push(ok(`provider configured: ${provider}`))
   } else {
@@ -93,10 +98,7 @@ export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
       results.push(error(`level "${levelName}" default_model is not defined`))
     }
 
-    const normalizedDefault = normalizeAgentModelId(
-      level.default_model,
-      getAgent(config, config.default_agent),
-    )
+    const normalizedDefault = normalizeAgentModelId(level.default_model, activeAgent)
     if (level.models.includes(level.default_model)) {
       results.push(ok(`level "${levelName}" default_model is in models: ${level.default_model}`))
     } else {
@@ -110,9 +112,9 @@ export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
 
   // 9. model id normalization
   try {
-    const allModels = collectAllModels(config)
+    const allModels = collectAllModels(config, effectiveAgentId)
     for (const model of allModels) {
-      const normalized = normalizeAgentModelId(model, getAgent(config, config.default_agent))
+      const normalized = normalizeAgentModelId(model, activeAgent)
       results.push(ok(`model id normalized: ${model} -> ${normalized}`))
     }
   } catch (err) {
@@ -123,37 +125,45 @@ export function runDoctor(options: DoctorOptions = {}): CheckResult[] {
   // 10. models list via agent bin
   let availableModels: string[] = []
   if (binPath) {
-    const modelArgs = ['models', provider]
-    if (options.refresh) {
-      modelArgs.push('--refresh')
-    }
-    const result = spawnSync(binPath, modelArgs, {
-      shell: false,
-      stdio: 'pipe',
-      encoding: 'utf-8',
-    })
-    if (result.status === 0) {
-      const refreshLabel = options.refresh ? ' (refreshed)' : ''
+    const agentAdapter = getAgentAdapter(effectiveAgentId)
+    if (!agentAdapter.buildModelListCommand) {
       results.push(
-        ok(`${config.default_agent} models ${provider} executed successfully${refreshLabel}`),
-      )
-      availableModels = parseModelList(result.stdout, provider)
-    } else {
-      results.push(
-        error(
-          `${config.default_agent} models ${provider} failed (exit ${result.status ?? 'unknown'})`,
+        warn(
+          `skipped ${effectiveAgentId} models check because the agent does not support model listing`,
         ),
       )
+    } else {
+      const spec = agentAdapter.buildModelListCommand({
+        bin: activeAgent.bin,
+        provider,
+        refresh: options.refresh,
+      })
+      const result = spawnSync(binPath, spec.args, {
+        shell: false,
+        stdio: 'pipe',
+        encoding: 'utf-8',
+      })
+      if (result.status === 0) {
+        const refreshLabel = options.refresh ? ' (refreshed)' : ''
+        results.push(
+          ok(`${effectiveAgentId} models ${provider} executed successfully${refreshLabel}`),
+        )
+        availableModels = parseModelList(result.stdout, provider)
+      } else {
+        results.push(
+          error(
+            `${effectiveAgentId} models ${provider} failed (exit ${result.status ?? 'unknown'})`,
+          ),
+        )
+      }
     }
   } else {
-    results.push(
-      warn(`skipped ${config.default_agent} models check because binary is not available`),
-    )
+    results.push(warn(`skipped ${effectiveAgentId} models check because binary is not available`))
   }
 
   // 11. config models exist in actual list
   if (availableModels.length > 0) {
-    const configuredModels = collectAllFullModelIds(config)
+    const configuredModels = collectAllFullModelIds(config, effectiveAgentId)
     for (const model of configuredModels) {
       if (availableModels.includes(model)) {
         results.push(ok(`configured model exists in provider: ${model}`))
@@ -287,7 +297,9 @@ export function createDoctorCommand(): Command {
     .description('Validate environment, configuration, and model definitions')
     .option('--refresh', 'Refresh the provider model list before checking')
     .action((options: DoctorCommandOptions) => {
-      const results = runDoctor({ refresh: options.refresh === true })
+      const globals = command.optsWithGlobals() as { agent?: string }
+      const effectiveAgentId = globals.agent ?? process.env.CAGENT_AGENT ?? undefined
+      const results = runDoctor({ refresh: options.refresh === true }, effectiveAgentId)
       printResults(results)
       if (hasErrors(results)) {
         process.exit(1)

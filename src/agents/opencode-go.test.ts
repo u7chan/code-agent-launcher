@@ -78,4 +78,20 @@ describe('opencodeGoAdapter', () => {
       }),
     ).toEqual({ command: 'opencode', args: ['run', '--model', 'opencode-go/model', 'prompt'] })
   })
+
+  it('builds a models list command', () => {
+    expect(
+      opencodeGoAdapter.buildModelListCommand?.({ bin: 'opencode', provider: 'opencode-go' }),
+    ).toEqual({ command: 'opencode', args: ['models', 'opencode-go'] })
+  })
+
+  it('builds a models list command with refresh', () => {
+    expect(
+      opencodeGoAdapter.buildModelListCommand?.({
+        bin: 'opencode',
+        provider: 'opencode-go',
+        refresh: true,
+      }),
+    ).toEqual({ command: 'opencode', args: ['models', 'opencode-go', '--refresh'] })
+  })
 })
