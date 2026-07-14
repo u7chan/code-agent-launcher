@@ -53,7 +53,10 @@ RepositoryのImmutable Releasesを有効化しています。公開済みRelease
 repository admin権限のある`gh`認証で、次のAPIから設定を確認できます。
 
 ```bash
-gh api 'repos/u7chan/code-agent-launcher/rulesets?includes_parents=true'
+gh api 'repos/u7chan/code-agent-launcher/rulesets?includes_parents=true' \
+  --jq '.[] | select(.name == "release-tag-creation" or .name == "release-tag-immutability") | .id' \
+  | xargs -I{} gh api repos/u7chan/code-agent-launcher/rulesets/{}
+gh api users/u7chan --jq '.id'
 gh api repos/u7chan/code-agent-launcher/environments/release
 gh api repos/u7chan/code-agent-launcher/environments/release/deployment-branch-policies
 gh api -H 'X-GitHub-Api-Version: 2026-03-10' \
@@ -62,14 +65,16 @@ gh api -H 'X-GitHub-Api-Version: 2026-03-10' \
 
 確認時は次を満たすことを確認します。
 
-- `release-tag-creation`のbypass actorが`u7chan`ユーザーだけである
-- `release-tag-immutability`にbypass actorがなく、update・deletionが制限されている
+- 両rulesetのtargetがtag、enforcementが`active`、対象patternが`refs/tags/v*`である
+- `release-tag-creation`がcreationを制限し、bypass actorが`u7chan`のuser IDだけである
+- `release-tag-immutability`がupdate・deletionを制限し、bypass actorがない
 - `release` Environmentのreviewerが`u7chan`、self-reviewが許可、admin bypassが無効である
 - deployment branch policyがtag typeの`v*`だけである
 - Immutable Releasesの`enabled`が`true`である
 
 Environmentの承認待ちとref制限の実workflow確認は、Release workflowを追加するIssue #17で
-実施します。
+実施します。保護対象tagのforce update・deleteが拒否されることも、既存Release tagへ影響しない
+使い捨てtag namespaceと一時rulesetを用いてIssue #17で確認します。
 
 ## 失敗時の復旧
 
