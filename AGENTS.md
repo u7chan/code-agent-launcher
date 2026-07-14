@@ -40,5 +40,4 @@ bun run validate smoke --profile core # Codexモデルルーティング検証
 - `src/doctor.ts`: 設定・環境の検証
 - `validation/README.md`: Codexモデルルーティングの精度検証手順
 - `.claude/skills/validate-code-agent-launcher/SKILL.md`: 検証を実行・報告するエージェント向け手順
-- `skills/coding-agent-subagent/SKILL.md`: サブエージェント呼び出しの詳細ルール
 - `.github/workflows/ci.yml`: CI設定
