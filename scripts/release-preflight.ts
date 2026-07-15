@@ -6,9 +6,9 @@ import { runStandaloneSmoke } from '../src/release/smoke.js'
 import { createReleaseArtifact, findReleaseTarget } from '../src/release/targets.js'
 import { validateReleaseTag } from '../src/release/validation.js'
 
-if (process.platform !== 'linux' || process.arch !== 'x64') {
+if (process.platform !== 'linux' || (process.arch !== 'x64' && process.arch !== 'arm64')) {
   throw new Error(
-    'Release preflight requires a Linux x64 host for the native standalone smoke test',
+    'Release preflight requires a Linux x64 or arm64 host for the native standalone smoke test',
   )
 }
 
@@ -16,19 +16,27 @@ const projectRoot = join(import.meta.dir, '..')
 const outputRoot = join(projectRoot, 'release')
 const version = await readPackageVersion(join(projectRoot, 'package.json'))
 validateReleaseTag(`v${version}`, version)
+const architecture = process.arch
 
 const buildResult = Bun.spawnSync({
-  cmd: [process.execPath, join(projectRoot, 'scripts', 'build-standalone.ts'), '--arch', 'x64'],
+  cmd: [
+    process.execPath,
+    join(projectRoot, 'scripts', 'build-standalone.ts'),
+    '--arch',
+    architecture,
+  ],
   cwd: projectRoot,
   env: process.env,
   stdout: 'inherit',
   stderr: 'inherit',
 })
 if (buildResult.exitCode !== 0) {
-  throw new Error(`Linux x64 standalone build failed with exit code ${buildResult.exitCode}`)
+  throw new Error(
+    `Linux ${architecture} standalone build failed with exit code ${buildResult.exitCode}`,
+  )
 }
 
-const artifact = createReleaseArtifact(version, findReleaseTarget('x64'))
+const artifact = createReleaseArtifact(version, findReleaseTarget(architecture))
 const archivePath = join(outputRoot, artifact.assetName)
 await validateReleaseArchive(archivePath, artifact)
 console.log(`Validated ${archivePath}`)
@@ -40,4 +48,4 @@ console.log(`Generated and verified ${checksumPath}`)
 
 const binaryPath = join(outputRoot, '.build', artifact.directoryName, artifact.executableName)
 await runStandaloneSmoke({ binaryPath, version })
-console.log('Passed isolated Linux x64 standalone smoke test')
+console.log(`Passed isolated Linux ${architecture} standalone smoke test`)
