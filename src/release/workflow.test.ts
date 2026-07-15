@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parse } from 'yaml'
@@ -10,6 +10,13 @@ interface WorkflowStep {
   run?: string
   uses?: string
   with?: Record<string, unknown>
+}
+
+interface ReleaseAsset {
+  digest: string
+  name: string
+  size: number
+  state: string
 }
 
 interface WorkflowJob {
@@ -29,6 +36,102 @@ const projectRoot = join(import.meta.dir, '..', '..')
 const workflowPath = join(projectRoot, '.github', 'workflows', 'release.yml')
 const workflow = parse(await readFile(workflowPath, 'utf8')) as ReleaseWorkflow
 const refNameExpression = '$' + '{{ github.ref_name }}'
+
+async function runVerifyDraftStep(
+  scenario: string,
+  mutateRelease?: (release: {
+    assets: ReleaseAsset[]
+    draft: boolean
+    id: number
+    tag_name: string
+  }) => void,
+) {
+  const root = await mkdtemp(join(tmpdir(), 'cagent-release-publish-test-'))
+  const releaseDirectory = join(root, 'release')
+  const mockBin = join(root, 'bin')
+  const tag = 'v1.2.3'
+  const x64Name = `cagent-${tag}-linux-x64.tar.gz`
+  const arm64Name = `cagent-${tag}-linux-arm64.tar.gz`
+  const x64 = join(releaseDirectory, x64Name)
+  const arm64 = join(releaseDirectory, arm64Name)
+  const checksums = join(releaseDirectory, 'SHA256SUMS')
+  const queryCount = join(root, 'query-count')
+  const patchMarker = join(root, 'patched')
+  await mkdir(releaseDirectory)
+  await mkdir(mockBin)
+  await writeFile(x64, 'x64 archive')
+  await writeFile(arm64, 'arm64 archive')
+  await writeSha256Checksums([x64, arm64], checksums)
+
+  const digest = async (path: string) =>
+    `sha256:${new Bun.CryptoHasher('sha256').update(await readFile(path)).digest('hex')}`
+  const release = {
+    id: 123,
+    tag_name: tag,
+    draft: true,
+    assets: [
+      { name: x64Name, state: 'uploaded', size: 11, digest: await digest(x64) },
+      { name: arm64Name, state: 'uploaded', size: 13, digest: await digest(arm64) },
+      { name: 'SHA256SUMS', state: 'uploaded', size: 42, digest: await digest(checksums) },
+    ],
+  }
+  mutateRelease?.(release)
+
+  const gh = `#!/usr/bin/env bash
+set -euo pipefail
+if [[ " $* " == *' --paginate '* ]]; then
+  count="$(cat "$MOCK_QUERY_COUNT" 2>/dev/null || printf '0')"
+  count=$((count + 1))
+  printf '%s' "$count" > "$MOCK_QUERY_COUNT"
+  case "$MOCK_SCENARIO" in
+    delayed) (( count >= 3 )) && printf '123\\n' ;;
+    missing) ;;
+    multiple) printf '123\\n124\\n' ;;
+    invalid) printf 'not-an-id\\n' ;;
+    *) printf '123\\n' ;;
+  esac
+  exit 0
+fi
+if [[ " $* " == *' --method PATCH '* ]]; then
+  printf 'patched\\n' > "$MOCK_PATCH_MARKER"
+  exit 0
+fi
+printf '%s\\n' "$MOCK_RELEASE_JSON"
+`
+  await writeFile(join(mockBin, 'gh'), gh)
+  await writeFile(join(mockBin, 'sleep'), '#!/usr/bin/env bash\nexit 0\n')
+  await chmod(join(mockBin, 'gh'), 0o755)
+  await chmod(join(mockBin, 'sleep'), 0o755)
+
+  const verification = workflow.jobs.publish?.steps.find(
+    (step) => step.name === 'Verify draft and publish',
+  )
+  const result = Bun.spawnSync({
+    cmd: ['bash', '--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', verification?.run ?? ''],
+    cwd: root,
+    env: {
+      ...process.env,
+      PATH: `${mockBin}:${process.env.PATH}`,
+      GITHUB_REF_NAME: tag,
+      GITHUB_REPOSITORY: 'example/repository',
+      MOCK_PATCH_MARKER: patchMarker,
+      MOCK_QUERY_COUNT: queryCount,
+      MOCK_RELEASE_JSON: JSON.stringify(release),
+      MOCK_SCENARIO: scenario,
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+
+  return {
+    exitCode: result.exitCode,
+    patchMarker,
+    patched: await Bun.file(patchMarker).exists(),
+    queryCount: Number(await readFile(queryCount, 'utf8')),
+    root,
+    stderr: new TextDecoder().decode(result.stderr),
+  }
+}
 
 describe('release workflow security boundaries', () => {
   it('only starts for stable SemVer-shaped tag pushes', () => {
@@ -119,6 +222,63 @@ describe('release workflow security boundaries', () => {
     expect(commands).toContain('.draft == true')
     expect(commands).not.toContain('/releases/tags/')
     expect(commands).not.toContain('--clobber')
+  })
+
+  it('retries a temporarily invisible exact-tag draft before publishing it', async () => {
+    const result = await runVerifyDraftStep('delayed')
+    try {
+      expect(result.stderr).toBe('')
+      expect(result.exitCode).toBe(0)
+      expect(result.queryCount).toBe(3)
+      expect(result.patched).toBe(true)
+      expect(await readFile(result.patchMarker, 'utf8')).toBe('patched\n')
+    } finally {
+      await rm(result.root, { recursive: true, force: true })
+    }
+  })
+
+  it('fails closed when draft discovery never converges or returns unsafe IDs', async () => {
+    for (const [scenario, expectedQueries] of [
+      ['missing', 6],
+      ['multiple', 1],
+      ['invalid', 1],
+    ] as const) {
+      const result = await runVerifyDraftStep(scenario)
+      try {
+        expect(result.exitCode, scenario).not.toBe(0)
+        expect(result.queryCount, scenario).toBe(expectedQueries)
+        expect(result.patched, scenario).toBe(false)
+      } finally {
+        await rm(result.root, { recursive: true, force: true })
+      }
+    }
+  })
+
+  it('fails closed when draft identity, assets, or digests do not match', async () => {
+    const cases: Array<
+      [
+        string,
+        (release: { assets: ReleaseAsset[]; draft: boolean; id: number; tag_name: string }) => void,
+      ]
+    > = [
+      ['tag', (release) => (release.tag_name = 'v9.9.9')],
+      ['draft', (release) => (release.draft = false)],
+      ['id', (release) => (release.id = 456)],
+      ['assets', (release) => release.assets.pop()],
+      ['digest', (release) => (release.assets[0].digest = 'sha256:incorrect')],
+    ]
+
+    for (const [name, mutate] of cases) {
+      const result = await runVerifyDraftStep('success', mutate)
+      try {
+        expect(result.exitCode, name).not.toBe(0)
+        expect(result.queryCount, name).toBe(1)
+        expect(result.patched, name).toBe(false)
+        expect(result.stderr, name).toContain('Draft is not complete and ready for publication')
+      } finally {
+        await rm(result.root, { recursive: true, force: true })
+      }
+    }
   })
 
   it('accepts the exact downloaded asset set before creating a draft', async () => {
