@@ -26,6 +26,26 @@ readonly repository
 [[ "$repository" == "$EXPECTED_REPOSITORY" ]] ||
   fail "repository is $repository, expected $EXPECTED_REPOSITORY"
 
+is_expected_repository_url() {
+  case "$1" in
+    "https://github.com/$EXPECTED_REPOSITORY" | \
+      "https://github.com/$EXPECTED_REPOSITORY.git" | \
+      "git@github.com:$EXPECTED_REPOSITORY.git" | \
+      "ssh://git@github.com/$EXPECTED_REPOSITORY.git") return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+mapfile -t origin_fetch_urls < <(git remote get-url --all origin 2>/dev/null)
+[[ "${#origin_fetch_urls[@]}" -eq 1 ]] || fail 'could not identify exactly one origin fetch URL'
+mapfile -t origin_push_urls < <(git remote get-url --push --all origin 2>/dev/null)
+[[ "${#origin_push_urls[@]}" -eq 1 ]] || fail 'could not identify exactly one origin push URL'
+readonly origin_fetch_urls origin_push_urls
+is_expected_repository_url "${origin_fetch_urls[0]}" ||
+  fail "origin fetch URL does not target $EXPECTED_REPOSITORY"
+is_expected_repository_url "${origin_push_urls[0]}" ||
+  fail "origin push URL does not target $EXPECTED_REPOSITORY"
+
 git fetch --no-tags --prune origin '+refs/heads/main:refs/remotes/origin/main' >/dev/null
 
 head_sha="$(git rev-parse HEAD)" || fail 'could not resolve HEAD'

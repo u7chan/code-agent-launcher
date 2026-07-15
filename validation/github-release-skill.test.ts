@@ -34,7 +34,14 @@ function git(cwd: string, ...arguments_: string[]) {
   return result.stdout.trim()
 }
 
-async function createMockRepository(options: { workflow?: boolean } = {}) {
+async function createMockRepository(
+  options: {
+    originUrl?: string
+    originPushUrl?: string
+    upstreamUrl?: string
+    workflow?: boolean
+  } = {},
+) {
   const root = await mkdtemp(join(tmpdir(), 'github-release-skill-'))
   temporaryRoots.push(root)
   const origin = join(root, 'origin.git')
@@ -59,6 +66,28 @@ async function createMockRepository(options: { workflow?: boolean } = {}) {
   git(worktree, 'add', '.')
   git(worktree, 'commit', '-m', 'fixture')
   git(worktree, 'push', '-u', 'origin', 'main')
+  const originUrl = options.originUrl ?? 'git@github.com:u7chan/code-agent-launcher.git'
+  if (options.upstreamUrl) {
+    git(worktree, 'remote', 'add', 'upstream', options.upstreamUrl)
+  }
+
+  const gitMock = join(mockBin, 'git')
+  await writeFile(
+    gitMock,
+    `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$*" == 'remote get-url --all origin' ]]; then
+  [[ -n "\${MOCK_ORIGIN_FETCH_URL:-}" ]] || exit 2
+  printf '%s\\n' "$MOCK_ORIGIN_FETCH_URL"
+elif [[ "$*" == 'remote get-url --push --all origin' ]]; then
+  [[ -n "\${MOCK_ORIGIN_PUSH_URL:-}" ]] || exit 2
+  printf '%s\\n' "$MOCK_ORIGIN_PUSH_URL"
+else
+  exec "\${REAL_GIT:?}" "$@"
+fi
+`,
+  )
+  await chmod(gitMock, 0o755)
 
   const gh = join(mockBin, 'gh')
   await writeFile(
@@ -94,7 +123,14 @@ esac
   )
   await chmod(gh, 0o755)
 
-  return { root, origin, worktree, mockBin }
+  return {
+    root,
+    origin,
+    worktree,
+    mockBin,
+    originUrl,
+    originPushUrl: options.originPushUrl ?? originUrl,
+  }
 }
 
 function runPreflight(
@@ -107,6 +143,9 @@ function runPreflight(
     PATH: `${fixture.mockBin}:${process.env.PATH}`,
     MOCK_SHA: sha,
     MOCK_GH_SCENARIO: scenario,
+    MOCK_ORIGIN_FETCH_URL: fixture.originUrl,
+    MOCK_ORIGIN_PUSH_URL: fixture.originPushUrl,
+    REAL_GIT: Bun.which('git') ?? 'git',
   })
 }
 
@@ -122,6 +161,40 @@ describe('github-release preflight safety stops', () => {
     expect(result.stdout).toContain('Planned tag: v1.2.3')
     expect(git(fixture.worktree, 'tag', '--list')).toBe('')
     expect(git(fixture.worktree, 'ls-remote', '--tags', 'origin')).toBe('')
+  })
+
+  it('accepts the canonical HTTPS origin URL', async () => {
+    const fixture = await createMockRepository({
+      originUrl: 'https://github.com/u7chan/code-agent-launcher.git',
+    })
+    const result = runPreflight(fixture)
+    expect(result.exitCode, result.stderr).toBe(0)
+  })
+
+  it('stops when origin targets a fork even if upstream is the expected repository', async () => {
+    const fixture = await createMockRepository({
+      originUrl: 'git@github.com:fork/code-agent-launcher.git',
+      upstreamUrl: 'git@github.com:u7chan/code-agent-launcher.git',
+    })
+    const result = runPreflight(fixture)
+    expect(result.exitCode).not.toBe(0)
+    expect(result.stderr).toContain('origin fetch URL does not target u7chan/code-agent-launcher')
+  })
+
+  it('stops when the origin push URL targets a fork', async () => {
+    const fixture = await createMockRepository({
+      originPushUrl: 'https://github.com/fork/code-agent-launcher.git',
+    })
+    const result = runPreflight(fixture)
+    expect(result.exitCode).not.toBe(0)
+    expect(result.stderr).toContain('origin push URL does not target u7chan/code-agent-launcher')
+  })
+
+  it('stops when the origin URL cannot be identified', async () => {
+    const fixture = await createMockRepository({ originUrl: '' })
+    const result = runPreflight(fixture)
+    expect(result.exitCode).not.toBe(0)
+    expect(result.stderr).toContain('could not identify exactly one origin fetch URL')
   })
 
   it('stops when the release workflow is not implemented', async () => {
