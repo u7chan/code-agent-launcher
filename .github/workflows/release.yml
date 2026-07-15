@@ -331,21 +331,43 @@ jobs:
       - name: Verify draft and publish
         shell: bash
         run: |
-          release_id="$({
-            gh api --paginate \
-              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-              --jq '.[] | select(.tag_name == env.GITHUB_REF_NAME and .draft == true) | .id'
-          })"
-          if [[ ! "$release_id" =~ ^[0-9]+$ ]]; then
-            echo "Expected exactly one draft for ${GITHUB_REF_NAME}, got: ${release_id:-none}" >&2
+          max_attempts=6
+          retry_delay_seconds=5
+          release_id=''
+          for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+            draft_ids="$({
+              gh api --paginate \
+                "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+                --jq '.[] | select(.tag_name == env.GITHUB_REF_NAME and .draft == true) | .id'
+            })"
+
+            if [[ -z "$draft_ids" ]]; then
+              if (( attempt == max_attempts )); then
+                echo "Expected exactly one draft for ${GITHUB_REF_NAME} after ${max_attempts} attempts, got: none" >&2
+                exit 1
+              fi
+              echo "Draft for ${GITHUB_REF_NAME} is not visible yet (attempt ${attempt}/${max_attempts}); retrying in ${retry_delay_seconds}s"
+              sleep "$retry_delay_seconds"
+              continue
+            fi
+
+            if [[ "$draft_ids" =~ ^[1-9][0-9]*$ ]]; then
+              release_id="$draft_ids"
+              break
+            fi
+
+            display_ids="${draft_ids//$'\n'/, }"
+            echo "Expected exactly one draft with a valid ID for ${GITHUB_REF_NAME}, got: ${display_ids}" >&2
             exit 1
-          fi
+          done
 
           release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}")"
           x64_digest="sha256:$(sha256sum "release/cagent-${GITHUB_REF_NAME}-linux-x64.tar.gz" | cut -d ' ' -f 1)"
           arm64_digest="sha256:$(sha256sum "release/cagent-${GITHUB_REF_NAME}-linux-arm64.tar.gz" | cut -d ' ' -f 1)"
           checksum_digest="sha256:$(sha256sum release/SHA256SUMS | cut -d ' ' -f 1)"
           if ! jq -e \
+            --arg tag "$GITHUB_REF_NAME" \
+            --arg release_id "$release_id" \
             --arg x64 "cagent-${GITHUB_REF_NAME}-linux-x64.tar.gz" \
             --arg arm64 "cagent-${GITHUB_REF_NAME}-linux-arm64.tar.gz" \
             --arg x64_digest "$x64_digest" \
@@ -353,6 +375,8 @@ jobs:
             --arg checksum_digest "$checksum_digest" \
             '
               def asset($name): first(.assets[] | select(.name == $name));
+              .tag_name == $tag and
+              ((.id | tostring) == $release_id) and
               .draft == true and
               (.assets | length == 3) and
               all(.assets[]; .state == "uploaded" and .size > 0) and
