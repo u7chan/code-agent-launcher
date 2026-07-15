@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Release"
+  short_description: "Safely prepare and start maintainer releases"
+  default_prompt: "Use $github-release to safely prepare or start a code-agent-launcher release."

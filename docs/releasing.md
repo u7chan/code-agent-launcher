@@ -1,7 +1,44 @@
 # Release運用
 
 この文書は、standalone binaryを公開するmaintainer向けに、GitHub repository側の
-保護設定、Release workflow、復旧方針を記録します。tag作成手順はIssue #18で追加します。
+保護設定、Release workflow、開始手順、復旧方針を記録します。実作業では
+[`github-release` Skill](../skills/github-release/SKILL.md)を使用します。
+
+## Release開始手順
+
+Version更新とtag pushを1回の作業として扱わず、必ず`prepare`と`start`に分けます。
+
+### Prepare: Version更新PR
+
+1. 前回Releaseからの変更を確認し、SemVerのmajor、minor、patchのどれを上げるか決定する。
+2. strict stable SemVerのVersionを選ぶ。leading zero、prerelease、build metadataは使用しない。
+3. `origin/main`からrelease用branchを作り、`package.json`のVersionと必要なlockfileだけを更新する。
+4. `bun run check`、`bun test`、`bun run format:check`、`bun run build`を実行する。
+5. Version、変更種別、検証結果を記載したPRを作成する。
+6. CI成功とdiffをreviewしてmainへmergeする。merge完了まではtagを作成しない。
+
+Version変更をmainへ直接pushしません。merge前に問題が見つかった場合は同じPRを修正し、CIを
+再実行します。merge後に別の問題が見つかった場合も、mainを直接直さず新しいPRを使用します。
+
+### Start: merge後のtag push
+
+clean worktreeの`main`で、希望tagを指定してpreflightを実行します。
+
+```bash
+git switch main
+bash skills/github-release/scripts/preflight.sh vX.Y.Z
+```
+
+preflightは`origin/main`をfetchし、main同期、strict SemVer、`package.json` Version、対象SHAの
+main CI成功、同名tagとRelease/draftの不存在を検査します。成功出力に含まれるVersion、commit SHA、
+CI結果とrun URL、予定tagをmaintainerが確認した後、明示承認がある場合だけSkillがannotated tagを
+作成して通常pushします。force pushは使用しません。
+
+tag pushが`.github/workflows/release.yml`を起動します。VersionをGitHub Actions Formへ再入力したり、
+`gh workflow run`で起動したりしません。Skillが示すworkflow run URLを開き、build、native smoke、
+checksum、attestationの成功を確認します。`publish` jobが待機したらGitHub UIの
+**Review deployments**で`release` Environmentを選択し、承認します。Environment承認をAPIで
+自動化せず、admin bypassも使用しません。localからReleaseやassetを作成・uploadしません。
 
 ## 権限モデル
 
@@ -180,3 +217,22 @@ versionを破棄します。修正をmainへmergeし、次のversionで新しい
 新しいtagを作成せず、Release操作を停止します。repository Settingsまたは管理APIでこの文書の
 設定へ戻し、上記APIですべての値を再確認してから再開します。緊急対応でもtag移動、tag削除、
 admin bypassによる公開は行いません。
+
+## 初回Release rehearsal checklist
+
+初回production Releaseでは、各項目をmaintainerが確認し、結果とURLをIssueへ記録します。
+
+- [ ] Version更新がfeature branchのPRだけに含まれ、mainへ直接pushされていない
+- [ ] Version更新PRのCIが成功し、merge commitが`origin/main`へ反映されている
+- [ ] cleanな`main`でSkillのpreflightが成功した
+- [ ] preflightのVersion、commit SHA、CI run URL、予定tagを目視確認した
+- [ ] 明示承認前にlocal/remote tagが作成されていない
+- [ ] 承認後のtagがpreflightで示したSHAを指している
+- [ ] tag pushだけでRelease workflowが起動し、workflow run URLを記録した
+- [ ] `release` Environment承認前にReleaseまたはdraftが作成されていない
+- [ ] GitHub UIから`release` Environmentを承認し、bypassを使用していない
+- [ ] x64/arm64 native smoke、checksum、attestation、publishがすべて成功した
+- [ ] 公開Releaseにx64 archive、arm64 archive、`SHA256SUMS`だけが存在する
+- [ ] READMEのcleanなWSL2/Linux install、checksum、release integrity、attestationを再現した
+- [ ] tag rulesets、Environment、Immutable Releasesが本書の設定と一致する
+- [ ] 失敗時にtag移動・削除、asset上書き、同じVersionの再利用を行わない運用を確認した

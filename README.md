@@ -99,6 +99,81 @@ cagent doctor
 
 設定ファイルは `~/.config/cagent/config.yaml` です。環境変数には `CAGENT_CONFIG` / `CAGENT_AGENT` / `CAGENT_MODEL` / `CAGENT_LEVEL` / `CAGENT_EFFORT` を使用します。
 
+## Linuxへのinstall
+
+standalone releaseはLinux glibcのx64とarm64を提供します。WSL2のUbuntuなど、glibcベースの
+Linux distributionでも同じ手順を使用できます。GitHubのReleases画面でVersionを確認し、
+architectureに合うarchiveをdownloadしてください。`curl`、`tar`、GNU `sha256sum`を使用します。
+
+```bash
+VERSION=0.1.0
+case "$(uname -m)" in
+  x86_64) ARCH=x64 ;;
+  aarch64|arm64) ARCH=arm64 ;;
+  *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+esac
+
+curl --fail --location --remote-name \
+  "https://github.com/u7chan/code-agent-launcher/releases/download/v${VERSION}/cagent-v${VERSION}-linux-${ARCH}.tar.gz"
+curl --fail --location --remote-name \
+  "https://github.com/u7chan/code-agent-launcher/releases/download/v${VERSION}/SHA256SUMS"
+sha256sum --check --ignore-missing SHA256SUMS
+
+tar -xzf "cagent-v${VERSION}-linux-${ARCH}.tar.gz"
+mkdir -p "$HOME/.local/bin"
+install -m 0755 "cagent-v${VERSION}-linux-${ARCH}/cagent" "$HOME/.local/bin/cagent"
+"$HOME/.local/bin/cagent" --version
+```
+
+`$HOME/.local/bin`が`PATH`に含まれない場合は、shellの設定へ追加してください。system-wideに
+installする場合だけ、配置先を`/usr/local/bin/cagent`へ変更して必要な権限を使用します。
+
+### Update
+
+新しいVersionとarchitectureを指定して上記のdownload、checksum検証、展開を繰り返し、最後に
+`install -m 0755`で既存binaryを置き換えます。検証前に既存binaryを削除しないでください。
+設定は`~/.config/cagent/config.yaml`にあり、binaryの更新では変更されません。
+
+### Release integrityとattestation
+
+`SHA256SUMS`はdownload時の破損とassetの取り違えを検出します。さらにGitHub CLIで、Immutable
+Release由来のrelease attestationと、Release workflowが生成したbuild provenanceを検証できます。
+これらのsubcommandを含む最新版のGitHub CLIをinstallし、`gh auth login`を済ませてください。
+利用中のCLIが対応しているかは`gh release verify --help`と`gh attestation verify --help`で確認できます。
+
+```bash
+VERSION=0.1.0
+TAG="v${VERSION}"
+ARCH=x64 # arm64の場合はarm64へ変更
+ASSET="cagent-${TAG}-linux-${ARCH}.tar.gz"
+REPOSITORY=u7chan/code-agent-launcher
+
+gh release verify "$TAG" --repo "$REPOSITORY"
+gh release verify-asset "$TAG" "$ASSET" --repo "$REPOSITORY"
+gh attestation verify "$ASSET" \
+  --repo "$REPOSITORY" \
+  --source-ref "refs/tags/$TAG" \
+  --signer-workflow "$REPOSITORY/.github/workflows/release.yml"
+```
+
+checksum、release integrity、attestationのいずれかが失敗したassetは実行せず、download元、Version、
+architectureを確認してください。`SHA256SUMS`にdownloadしたarchive名が含まれることも確認します。
+
+### Uninstall
+
+```bash
+rm "$HOME/.local/bin/cagent"
+```
+
+system-wideに配置した場合は、実際の配置先から削除します。設定も不要なら
+`~/.config/cagent/`を別途削除できますが、再installに備えて残しても問題ありません。
+
+### Support範囲
+
+- 対象: Linux glibc x64、Linux glibc arm64、これらの環境を提供するWSL2
+- 対象外: macOS native、Windows native、muslベースdistribution、上記以外のarchitecture
+- sourceからの開発実行: Node.js 18+とBunを使用する本READMEの開発手順に従う
+
 ## ローカル検証
 
 Codex向けの検証設定は [`validation/`](validation/) で管理します。
@@ -117,6 +192,8 @@ Codexのモデル対応は `low=gpt-5.6-luna`、`mid=gpt-5.6-terra`、`high=gpt-
 
 Releaseに使用するGitHub repository保護と、失敗時の復旧方針は
 [`docs/releasing.md`](docs/releasing.md) を参照してください。
+maintainerがVersion更新PRまたはReleaseを開始するときは
+[`skills/github-release/SKILL.md`](skills/github-release/SKILL.md) を使用します。
 
 通常 CI は Bun 1.3.10 を使い、Linux x64 standalone の build・pack、archive
 構造、SHA-256 checksum、隔離 smoke test を検証します。ローカルでは Linux x64
