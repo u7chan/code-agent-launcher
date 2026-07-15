@@ -1,6 +1,6 @@
 {
   "name": "code-agent-launcher",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A lightweight profile launcher for coding-agent CLIs",
   "type": "module",
   "main": "dist/index.js",
