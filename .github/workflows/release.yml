@@ -1,0 +1,373 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-guard:
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Reject an existing release or draft
+        shell: bash
+        run: |
+          existing="$({
+            gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[] | select(.tag_name == env.GITHUB_REF_NAME) | "\(.id)\tdraft=\(.draft)"'
+          })"
+          if [[ -n "$existing" ]]; then
+            echo "A release or draft already exists for ${GITHUB_REF_NAME}: ${existing}" >&2
+            exit 1
+          fi
+
+  validate-build:
+    needs: release-guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.10
+
+      - name: Validate tag, package version, and main ancestry
+        shell: bash
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Release tag must be a stable SemVer in vX.Y.Z format: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+          package_version="$(node -p "require('./package.json').version")"
+          if [[ "${GITHUB_REF_NAME#v}" != "$package_version" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package.json version ${package_version}" >&2
+            exit 1
+          fi
+
+          git fetch --no-tags --prune origin \
+            '+refs/heads/main:refs/remotes/origin/main'
+          tag_commit="$(git rev-list -n 1 "$GITHUB_REF")"
+          if [[ -z "$tag_commit" ]]; then
+            echo "Could not peel ${GITHUB_REF} to a commit" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$tag_commit" origin/main; then
+            echo "Tagged commit ${tag_commit} is not in origin/main history" >&2
+            exit 1
+          fi
+
+          bun run release:validate -- --tag "$GITHUB_REF_NAME"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check
+        run: bun run check
+
+      - name: Test
+        run: bun test
+
+      - name: Format check
+        run: bun run format:check
+
+      - name: Build Linux release archives
+        run: bun run build:standalone
+
+      - name: Validate Linux x64 archive
+        run: >-
+          bun run release:validate --
+          --tag "$GITHUB_REF_NAME"
+          --archive "release/cagent-${GITHUB_REF_NAME}-linux-x64.tar.gz"
+          --arch x64
+
+      - name: Validate Linux arm64 archive
+        run: >-
+          bun run release:validate --
+          --tag "$GITHUB_REF_NAME"
+          --archive "release/cagent-${GITHUB_REF_NAME}-linux-arm64.tar.gz"
+          --arch arm64
+
+      - name: Upload Linux x64 archive
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-linux-x64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release/cagent-${{ github.ref_name }}-linux-x64.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+          overwrite: false
+
+      - name: Upload Linux arm64 archive
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-linux-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release/cagent-${{ github.ref_name }}-linux-arm64.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+          overwrite: false
+
+  native-smoke:
+    needs: validate-build
+    name: Native smoke (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            artifact: release-linux-x64
+            machine: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            artifact: release-linux-arm64
+            machine: aarch64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Download release archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ matrix.artifact }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release
+
+      - name: Run isolated native smoke test
+        shell: bash
+        env:
+          RELEASE_ARCH: ${{ matrix.arch }}
+          EXPECTED_MACHINE: ${{ matrix.machine }}
+        run: |
+          actual_machine="$(uname -m)"
+          echo "Runner architecture: ${actual_machine}"
+          if [[ "$actual_machine" != "$EXPECTED_MACHINE" ]]; then
+            echo "Expected ${EXPECTED_MACHINE}, got ${actual_machine}" >&2
+            exit 1
+          fi
+
+          archive="${GITHUB_WORKSPACE}/release/cagent-${GITHUB_REF_NAME}-linux-${RELEASE_ARCH}.tar.gz"
+          smoke_root="$(mktemp -d)"
+          trap 'rm -rf "$smoke_root"' EXIT
+          tar -xzf "$archive" -C "$smoke_root"
+
+          binary="${smoke_root}/cagent-${GITHUB_REF_NAME}-linux-${RELEASE_ARCH}/cagent"
+          execution_directory="${smoke_root}/cwd"
+          config_path="${smoke_root}/config/config.yaml"
+          poisoned_config="${smoke_root}/poisoned/config.yaml"
+          preload_marker="${smoke_root}/preload-ran"
+          mkdir "$execution_directory"
+          printf 'CAGENT_CONFIG=%s\nCAGENT_AGENT=must-not-be-loaded\n' \
+            "$poisoned_config" > "${execution_directory}/.env"
+          printf 'preload = ["./must-not-run.ts"]\n' \
+            > "${execution_directory}/bunfig.toml"
+          printf 'await Bun.write("%s", "preload ran")\nprocess.exit(91)\n' \
+            "$preload_marker" > "${execution_directory}/must-not-run.ts"
+
+          cd "$execution_directory"
+          version_output="$(CAGENT_CONFIG="$config_path" "$binary" --version)"
+          test "$version_output" = "${GITHUB_REF_NAME#v}"
+          CAGENT_CONFIG="$config_path" "$binary" --help | grep -F 'Usage: cagent'
+          CAGENT_CONFIG="$config_path" "$binary" config init
+          test -f "$config_path"
+          CAGENT_CONFIG="$config_path" "$binary" --dry-run | grep -F '# Resolved level: mid'
+          test ! -e "$poisoned_config"
+          test ! -e "$preload_marker"
+
+  checksums:
+    needs: native-smoke
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download Linux x64 archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-linux-x64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release
+
+      - name: Download Linux arm64 archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-linux-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release
+
+      - name: Generate and verify SHA256SUMS
+        shell: bash
+        working-directory: release
+        run: |
+          x64="cagent-${GITHUB_REF_NAME}-linux-x64.tar.gz"
+          arm64="cagent-${GITHUB_REF_NAME}-linux-arm64.tar.gz"
+          test -f "$x64"
+          test -f "$arm64"
+          sha256sum "$x64" "$arm64" > SHA256SUMS
+          sha256sum --check --strict SHA256SUMS
+
+      - name: Upload complete release assets
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-assets-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            release/cagent-${{ github.ref_name }}-linux-x64.tar.gz
+            release/cagent-${{ github.ref_name }}-linux-arm64.tar.gz
+            release/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+          overwrite: false
+
+  attest:
+    needs: checksums
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Download complete release assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release
+
+      - name: Attest release archives
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        with:
+          subject-path: |
+            release/cagent-${{ github.ref_name }}-linux-x64.tar.gz
+            release/cagent-${{ github.ref_name }}-linux-arm64.tar.gz
+
+  publish:
+    needs: attest
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Download complete release assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release
+
+      - name: Validate assets before creating draft
+        shell: bash
+        run: |
+          expected_assets="$({
+            printf '%s\n' \
+              "cagent-${GITHUB_REF_NAME}-linux-arm64.tar.gz" \
+              "cagent-${GITHUB_REF_NAME}-linux-x64.tar.gz" \
+              'SHA256SUMS'
+          } | LC_ALL=C sort)"
+          actual_assets="$(find release -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)"
+          if [[ "$actual_assets" != "$expected_assets" ]]; then
+            echo 'Downloaded release assets did not match the expected set' >&2
+            diff -u <(printf '%s\n' "$expected_assets") <(printf '%s\n' "$actual_assets") || true
+            exit 1
+          fi
+          (cd release && sha256sum --check --strict SHA256SUMS)
+
+      - name: Recheck that release does not exist
+        shell: bash
+        run: |
+          existing="$({
+            gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[] | select(.tag_name == env.GITHUB_REF_NAME) | "\(.id)\tdraft=\(.draft)"'
+          })"
+          if [[ -n "$existing" ]]; then
+            echo "Refusing to overwrite release or draft for ${GITHUB_REF_NAME}: ${existing}" >&2
+            exit 1
+          fi
+
+      - name: Create draft release
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          --repo "$GITHUB_REPOSITORY"
+          --draft
+          --verify-tag
+          --title "$GITHUB_REF_NAME"
+          --generate-notes
+          --latest=false
+
+      - name: Upload assets without overwrite
+        run: >-
+          gh release upload "$GITHUB_REF_NAME"
+          --repo "$GITHUB_REPOSITORY"
+          "release/cagent-${GITHUB_REF_NAME}-linux-x64.tar.gz"
+          "release/cagent-${GITHUB_REF_NAME}-linux-arm64.tar.gz"
+          release/SHA256SUMS
+
+      - name: Verify draft and publish
+        shell: bash
+        run: |
+          release_id="$({
+            gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[] | select(.tag_name == env.GITHUB_REF_NAME and .draft == true) | .id'
+          })"
+          if [[ ! "$release_id" =~ ^[0-9]+$ ]]; then
+            echo "Expected exactly one draft for ${GITHUB_REF_NAME}, got: ${release_id:-none}" >&2
+            exit 1
+          fi
+
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}")"
+          x64_digest="sha256:$(sha256sum "release/cagent-${GITHUB_REF_NAME}-linux-x64.tar.gz" | cut -d ' ' -f 1)"
+          arm64_digest="sha256:$(sha256sum "release/cagent-${GITHUB_REF_NAME}-linux-arm64.tar.gz" | cut -d ' ' -f 1)"
+          checksum_digest="sha256:$(sha256sum release/SHA256SUMS | cut -d ' ' -f 1)"
+          if ! jq -e \
+            --arg x64 "cagent-${GITHUB_REF_NAME}-linux-x64.tar.gz" \
+            --arg arm64 "cagent-${GITHUB_REF_NAME}-linux-arm64.tar.gz" \
+            --arg x64_digest "$x64_digest" \
+            --arg arm64_digest "$arm64_digest" \
+            --arg checksum_digest "$checksum_digest" \
+            '
+              def asset($name): first(.assets[] | select(.name == $name));
+              .draft == true and
+              (.assets | length == 3) and
+              all(.assets[]; .state == "uploaded" and .size > 0) and
+              (([.assets[].name] | sort) == ([$x64, $arm64, "SHA256SUMS"] | sort)) and
+              (asset($x64).digest == $x64_digest) and
+              (asset($arm64).digest == $arm64_digest) and
+              (asset("SHA256SUMS").digest == $checksum_digest)
+            ' <<< "$release_json" > /dev/null
+          then
+            echo 'Draft is not complete and ready for publication' >&2
+            exit 1
+          fi
+
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+            -F draft=false \
+            -f make_latest=true \
+            > /dev/null
