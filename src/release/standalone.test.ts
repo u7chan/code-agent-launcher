@@ -100,5 +100,26 @@ describe('standalone executable', () => {
     })
     expect(dryRunResult.exitCode).toBe(0)
     expect(decoder.decode(dryRunResult.stdout)).toContain('# Resolved level: low')
+
+    const dryRunWithLevelResult = Bun.spawnSync({
+      cmd: [binaryPath, '--dry-run', 'low'],
+      cwd: isolatedDirectory,
+      env: environment,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+    expect(dryRunWithLevelResult.exitCode).toBe(0)
+    expect(decoder.decode(dryRunWithLevelResult.stdout)).toContain('# Resolved level: low')
+
+    const configInitDryRunResult = Bun.spawnSync({
+      cmd: [binaryPath, 'config', 'init', '--dry-run'],
+      cwd: isolatedDirectory,
+      env: environment,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+    expect(configInitDryRunResult.exitCode).toBe(0)
+    expect(decoder.decode(configInitDryRunResult.stdout)).toContain('default_agent: codex')
+    expect(await Bun.file(join(configHome, 'cagent', 'config.yaml')).text()).toBe(configYaml())
   })
 })

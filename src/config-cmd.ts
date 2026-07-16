@@ -93,7 +93,7 @@ export function createConfigCommand(): Command {
       console.log(configPath())
     })
 
-  command
+  const init = command
     .command('init')
     .description('Create the default config file if it does not exist')
     .option('-f, --force', 'overwrite an existing config file')
@@ -101,7 +101,8 @@ export function createConfigCommand(): Command {
     .action((options: { force?: boolean; dryRun?: boolean }) => {
       const path = resolveConfigPath()
 
-      if (options.dryRun) {
+      const globals = init.optsWithGlobals() as { dryRun?: boolean }
+      if (options.dryRun || globals.dryRun) {
         console.log(DEFAULT_CONFIG)
         return
       }

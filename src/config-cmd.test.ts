@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { configPath } from './config.js'
 import { createConfigCommand, DEFAULT_CONFIG } from './config-cmd.js'
+import { createMainCommand } from './main.js'
 
 const validFixture = `default_agent: opencode-go
 default_level: mid
@@ -135,6 +136,37 @@ describe('createConfigCommand', () => {
         await command.parseAsync(['node', 'cagent', 'init', '--dry-run'])
         expect(logSpy).toHaveBeenCalledWith(DEFAULT_CONFIG)
         expect(existsSync(configPath())).toBe(false)
+      } finally {
+        logSpy.mockRestore()
+      }
+    })
+
+    it('uses a root dry-run option after the config init subcommand', async () => {
+      const program = createMainCommand()
+      program.addCommand(createConfigCommand())
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+      try {
+        await program.parseAsync(['node', 'cagent', 'config', 'init', '--dry-run'])
+        expect(logSpy).toHaveBeenCalledWith(DEFAULT_CONFIG)
+        expect(existsSync(dirname(configPath()))).toBe(false)
+        expect(existsSync(configPath())).toBe(false)
+      } finally {
+        logSpy.mockRestore()
+      }
+    })
+
+    it('does not overwrite an existing config when root dry-run is used', async () => {
+      const path = configPath()
+      const existingConfig = 'existing: config\n'
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, existingConfig, 'utf-8')
+      const program = createMainCommand()
+      program.addCommand(createConfigCommand())
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+      try {
+        await program.parseAsync(['node', 'cagent', 'config', 'init', '--dry-run'])
+        expect(logSpy).toHaveBeenCalledWith(DEFAULT_CONFIG)
+        expect(readFileSync(path, 'utf-8')).toBe(existingConfig)
       } finally {
         logSpy.mockRestore()
       }
