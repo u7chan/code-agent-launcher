@@ -1,11 +1,11 @@
 # code-agent-launcher
 
-[![CI](https://img.shields.io/github/actions/workflow/status/u7chan/code-agent-launcher/ci.yml?branch=main&label=CI&style=flat&logo=github)](https://github.com/u7chan/code-agent-launcher/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/actions/workflow/status/u7chan/code-agent-launcher/release.yml?label=Release&style=flat&logo=github)](https://github.com/u7chan/code-agent-launcher/actions/workflows/release.yml)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.5%2B-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Bun](https://img.shields.io/badge/Bun-1.3.10-000000?logo=bun&logoColor=white)](https://bun.sh/)
-[![License](https://img.shields.io/github/license/u7chan/code-agent-launcher?style=flat)](LICENSE)
+[![CI](https://github.com/u7chan/code-agent-launcher/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/u7chan/code-agent-launcher/actions/workflows/ci.yml)
+[![Release](https://github.com/u7chan/code-agent-launcher/actions/workflows/release.yml/badge.svg)](https://github.com/u7chan/code-agent-launcher/actions/workflows/release.yml)
+[![TypeScript](https://badgen.net/static/TypeScript/5.5%2B/3178C6?icon=typescript)](https://www.typescriptlang.org/)
+[![Node.js](https://badgen.net/static/Node.js/%3E%3D18/339933?icon=nodejs)](https://nodejs.org/)
+[![Bun](https://badgen.net/static/Bun/1.3.10/000000)](https://bun.sh/)
+[![License](https://badgen.net/github/license/u7chan/code-agent-launcher)](LICENSE)
 
 コーディングエージェント用ランチャー。CLI コマンドは `cagent` です。
 
