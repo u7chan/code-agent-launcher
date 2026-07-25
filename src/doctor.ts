@@ -13,7 +13,7 @@ import {
 } from './config.js'
 import { collectAllFullModelIds, collectAllModels, normalizeAgentModelId } from './model.js'
 
-export type CheckStatus = 'OK' | 'WARN' | 'ERROR'
+export type CheckStatus = 'OK' | 'WARN' | 'ERROR' | 'SKIP'
 
 export interface CheckResult {
   status: CheckStatus
@@ -26,6 +26,10 @@ function ok(message: string): CheckResult {
 
 function warn(message: string): CheckResult {
   return { status: 'WARN', message }
+}
+
+function skip(message: string): CheckResult {
+  return { status: 'SKIP', message }
 }
 
 function error(message: string): CheckResult {
@@ -128,7 +132,7 @@ export function runDoctor(options: DoctorOptions = {}, agentId?: string): CheckR
     const agentAdapter = getAgentAdapter(effectiveAgentId)
     if (!agentAdapter.buildModelListCommand) {
       results.push(
-        warn(
+        skip(
           `skipped ${effectiveAgentId} models check because the agent does not support model listing`,
         ),
       )
@@ -277,7 +281,9 @@ export function printResults(results: CheckResult[]): void {
         ? chalk.green('[OK]')
         : result.status === 'WARN'
           ? chalk.yellow('[WARN]')
-          : chalk.red('[ERROR]')
+          : result.status === 'SKIP'
+            ? chalk.cyan('[SKIP]')
+            : chalk.red('[ERROR]')
     console.log(`${label} ${result.message}`)
   }
 }
