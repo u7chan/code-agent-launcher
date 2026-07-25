@@ -81,10 +81,26 @@ multiplexer:
 - 非対話実行用の `run` コマンド
 - Herdr 連携用の `mux` コマンド
 - 設定と環境の検証用 `doctor` コマンド
+- 設定済みモデル一覧を表示する `models` コマンド
+
+### configured models と available models の違い
+
+- **configured models** (`cagent models`): 設定ファイルの `agents` に定義されたモデル一覧を表示します。エージェントごとのレベル、デフォルトモデル、許可モデルを外部コマンド起動なしで確認できます。
+- **available models** (`cagent models available`): プロバイダー CLI に問い合わせて現在利用可能なモデル一覧を取得します。対応する adapter が `buildModelListCommand` を持つ場合のみ実行可能です。Codex は非対応です。
 
 ## 主なコマンド例
 
 ```bash
+# 設定済みモデル一覧（全エージェント）
+cagent models
+
+# 特定エージェントの設定済みモデル一覧
+cagent --agent codex models
+
+# プロバイダーから利用可能モデルを取得
+cagent models available
+cagent models available --refresh
+
 # 非対話実行
 cagent run low -- "READMEの表記ゆれを直して"
 cagent run mid -- "このIssueの実装方針を作り、必要な変更点を列挙して"
