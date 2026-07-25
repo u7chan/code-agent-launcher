@@ -197,7 +197,7 @@ multiplexer:
     }
   })
 
-  it('hasErrors ignores SKIP results', () => {
+  it('emits SKIP result when binary is available but adapter does not support model listing', () => {
     const { file, cleanup } = writeTempConfig(`default_agent: codex
 default_level: mid
 agents:

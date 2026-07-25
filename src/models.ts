@@ -51,18 +51,29 @@ export interface ModelsAvailableOptions {
 export function createModelsCommand(): Command {
   const command = new Command('models')
 
-  command.description('List configured models').action(() => {
-    const config = loadConfig()
-    const globals = command.optsWithGlobals() as { agent?: string }
-    const explicitAgent = globals.agent
-    if (explicitAgent) {
-      if (!config.agents[explicitAgent]) {
-        console.error(`Error: agent "${explicitAgent}" is not defined in config`)
-        process.exit(1)
+  command
+    .description('List configured models')
+    .option(
+      '--refresh',
+      'No effect; use "cagent models available --refresh" to refresh model list from the provider',
+    )
+    .action(() => {
+      const config = loadConfig()
+      const globals = command.optsWithGlobals() as { agent?: string; refresh?: boolean }
+      const explicitAgent = globals.agent
+      if (explicitAgent) {
+        if (!config.agents[explicitAgent]) {
+          console.error(`Error: agent "${explicitAgent}" is not defined in config`)
+          process.exit(1)
+        }
       }
-    }
-    console.log(formatConfiguredModels(config, explicitAgent ?? undefined))
-  })
+      if (globals.refresh) {
+        console.warn(
+          'Warning: --refresh has no effect on "cagent models". Use "cagent models available --refresh" instead.',
+        )
+      }
+      console.log(formatConfiguredModels(config, explicitAgent ?? undefined))
+    })
 
   const availableCmd = new Command('available')
   availableCmd
@@ -72,6 +83,10 @@ export function createModelsCommand(): Command {
       const config = loadConfig()
       const globals = availableCmd.optsWithGlobals() as { agent?: string; dryRun?: boolean }
       const effectiveAgentId = globals.agent ?? process.env.CAGENT_AGENT ?? config.default_agent
+      if (!config.agents[effectiveAgentId]) {
+        console.error(`Error: agent "${effectiveAgentId}" is not defined in config`)
+        process.exit(1)
+      }
       const agent = getAgent(config, effectiveAgentId)
       const adapter = getAgentAdapter(effectiveAgentId)
 
