@@ -705,7 +705,12 @@ function smokeExtended(args: string[], reportDir: string): number {
   } else if (!supportsModelListing) {
     modelsStatus = 'skip'
   } else {
-    const models = run('node', [builtEntryPoint, '--agent', agent, 'models'], root, env)
+    const models = run(
+      'node',
+      [builtEntryPoint, '--agent', agent, 'models', 'available'],
+      root,
+      env,
+    )
     modelsStatus = models.status === 0 ? 'pass' : 'fail'
   }
 
