@@ -73,6 +73,11 @@ multiplexer:
   herdr:
     enabled: true
 ```
+`default_model` と `models` の役割の違い:
+
+- `default_model`: `--model` 未指定時に、そのレベルの実行で使われる単一のモデルです。常に1つだけ指定し、フォールバックチェーンではありません。
+- `models`: 既知モデルの配列（ホワイトリスト）です。**フォールバックには使われません。** `--model` 指定時・`default_model` 解決時のバリデーション、`doctor` 診断による設定整合性の確認、typo 候補の提示に使用されます。
+
 - 非対話実行用の `run` コマンド
 - Herdr 連携用の `mux` コマンド
 - 設定と環境の検証用 `doctor` コマンド
