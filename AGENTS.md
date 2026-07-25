@@ -32,7 +32,7 @@ bun run validate smoke --profile core # Codexモデルルーティング検証
 ## Skills
 
 「リリースして」「Version更新PRを作って」「Releaseを開始して」「release tagを作って」など、
-maintainer向けRelease作業の依頼では `skills/github-release/SKILL.md` を使用してください。
+maintainer向けRelease作業の依頼では `.agents/skills/github-release/SKILL.md` を使用してください。
 Version更新PRを作る `prepare` と、merge済みmainを検証してtag pushを開始する `start` を分離し、
 Skillの承認ゲートと禁止事項に従ってください。
 
@@ -46,6 +46,6 @@ Skillの承認ゲートと禁止事項に従ってください。
 - `src/config.ts`: 設定ファイルと環境変数の処理
 - `src/doctor.ts`: 設定・環境の検証
 - `validation/README.md`: Codexモデルルーティングの精度検証手順
-- `.claude/skills/validate-code-agent-launcher/SKILL.md`: 検証を実行・報告するエージェント向け手順
-- `skills/github-release/SKILL.md`: maintainer向けReleaseのprepare/start手順
+- `.agents/skills/validate-code-agent-launcher/SKILL.md`: 検証を実行・報告するエージェント向け手順
+- `.agents/skills/github-release/SKILL.md`: maintainer向けReleaseのprepare/start手順
 - `.github/workflows/ci.yml`: CI設定

@@ -221,7 +221,7 @@ Codexのモデル対応は `low=gpt-5.6-luna`、`mid=gpt-5.6-terra`、`high=gpt-
 Releaseに使用するGitHub repository保護と、失敗時の復旧方針は
 [`docs/releasing.md`](docs/releasing.md) を参照してください。
 maintainerがVersion更新PRまたはReleaseを開始するときは
-[`skills/github-release/SKILL.md`](skills/github-release/SKILL.md) を使用します。
+[`.agents/skills/github-release/SKILL.md`](.agents/skills/github-release/SKILL.md) を使用します。
 
 通常 CI は Bun 1.3.10 を使い、Linux x64 standalone の build・pack、archive
 構造、SHA-256 checksum、隔離 smoke test を検証します。ローカルでは Linux x64
