@@ -47,7 +47,7 @@ Releaseを`prepare`と`start`に分ける。Version更新PRのmerge前は`prepar
 希望tagを`vX.Y.Z`形式で指定して、repository rootから次を実行する。
 
 ```bash
-bash skills/github-release/scripts/preflight.sh vX.Y.Z
+bash .agents/skills/github-release/scripts/preflight.sh vX.Y.Z
 ```
 
 このscriptはtagを作成せず、次をすべて検査する。1つでも失敗したら修正またはmerge後に最初から
@@ -100,11 +100,11 @@ gh run list --repo u7chan/code-agent-launcher --workflow release.yml --event pus
 runの`publish` jobが待機したら、run URLをブラウザで開き、GitHub UIの
 **Review deployments**から`release` Environmentを選択し、内容を再確認して承認するよう案内する。
 承認APIを呼ばず、admin bypassを使わない。公開後のchecksum、release integrity、attestation検証は
-[`README.md`](../../README.md)と[`docs/releasing.md`](../../docs/releasing.md)に従う。
+[`README.md`](../../../README.md)と[`docs/releasing.md`](../../../docs/releasing.md)に従う。
 
 ## 失敗時
 
 - tag作成前: Version更新PRまたは対象commitを修正し、mainへmergeしてpreflightをやり直す。
 - tag作成後: tagを変更・削除しない。workflowを停止し、修正を新しいVersionのPRへ入れる。
 - draftまたは公開後: Releaseやassetを上書きしない。該当Versionを破棄し、新しいVersionでやり直す。
-- 保護設定不一致: 新しいtagを作成せず、[`docs/releasing.md`](../../docs/releasing.md)の設定へ戻して再確認する。
+- 保護設定不一致: 新しいtagを作成せず、[`docs/releasing.md`](../../../docs/releasing.md)の設定へ戻して再確認する。

@@ -2,7 +2,7 @@
 
 この文書は、standalone binaryを公開するmaintainer向けに、GitHub repository側の
 保護設定、Release workflow、開始手順、復旧方針を記録します。実作業では
-[`github-release` Skill](../skills/github-release/SKILL.md)を使用します。
+[`github-release` Skill](../.agents/skills/github-release/SKILL.md)を使用します。
 
 ## Release開始手順
 
@@ -26,7 +26,7 @@ clean worktreeの`main`で、希望tagを指定してpreflightを実行します
 
 ```bash
 git switch main
-bash skills/github-release/scripts/preflight.sh vX.Y.Z
+bash .agents/skills/github-release/scripts/preflight.sh vX.Y.Z
 ```
 
 preflightは`origin/main`をfetchし、main同期、strict SemVer、`package.json` Version、対象SHAの

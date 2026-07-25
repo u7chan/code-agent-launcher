@@ -1,10 +1,17 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, readlink, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const projectRoot = join(import.meta.dir, '..')
-const preflight = join(projectRoot, 'skills', 'github-release', 'scripts', 'preflight.sh')
+const preflight = join(
+  projectRoot,
+  '.agents',
+  'skills',
+  'github-release',
+  'scripts',
+  'preflight.sh',
+)
 const temporaryRoots: string[] = []
 
 afterEach(async () => {
@@ -296,10 +303,10 @@ describe('github-release repository contract', () => {
       readFile(join(projectRoot, 'AGENTS.md'), 'utf8'),
       readFile(join(projectRoot, 'README.md'), 'utf8'),
       readFile(join(projectRoot, 'docs', 'releasing.md'), 'utf8'),
-      readFile(join(projectRoot, 'skills', 'github-release', 'SKILL.md'), 'utf8'),
+      readFile(join(projectRoot, '.agents', 'skills', 'github-release', 'SKILL.md'), 'utf8'),
     ])
 
-    expect(agents).toContain('skills/github-release/SKILL.md')
+    expect(agents).toContain('.agents/skills/github-release/SKILL.md')
     for (const heading of [
       'Linuxへのinstall',
       'Update',
@@ -314,5 +321,79 @@ describe('github-release repository contract', () => {
     expect(releasing).toContain('初回Release rehearsal checklist')
     expect(skill).toContain('新たな明示承認')
     expect(skill).toContain('merge待ちで停止する')
+  })
+})
+
+describe('skill placement contract', () => {
+  const skillsRoot = join(projectRoot, '.agents', 'skills')
+  const expectedSkills = ['github-release', 'validate-code-agent-launcher', 'validation-log-update']
+
+  it('has all 3 skill entities under .agents/skills/', async () => {
+    for (const name of expectedSkills) {
+      const skillDir = join(skillsRoot, name)
+      const s = await stat(skillDir)
+      expect(s.isDirectory()).toBe(true)
+      const skillMd = join(skillDir, 'SKILL.md')
+      const content = await readFile(skillMd, 'utf8')
+      expect(content.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('has .claude/skills as a relative symlink to ../.agents/skills', async () => {
+    const claudeLink = join(projectRoot, '.claude', 'skills')
+    const target = await readlink(claudeLink)
+    expect(target).toBe('../.agents/skills')
+    const s = await stat(claudeLink)
+    expect(s.isDirectory()).toBe(true)
+  })
+
+  it('has .codex/skills as a relative symlink to ../.agents/skills', async () => {
+    const codexLink = join(projectRoot, '.codex', 'skills')
+    const target = await readlink(codexLink)
+    expect(target).toBe('../.agents/skills')
+    const s = await stat(codexLink)
+    expect(s.isDirectory()).toBe(true)
+  })
+
+  it('reads every SKILL.md through both .claude and .codex symlinks', async () => {
+    for (const name of expectedSkills) {
+      const claudeContent = await readFile(
+        join(projectRoot, '.claude', 'skills', name, 'SKILL.md'),
+        'utf8',
+      )
+      expect(claudeContent.length).toBeGreaterThan(0)
+      const codexContent = await readFile(
+        join(projectRoot, '.codex', 'skills', name, 'SKILL.md'),
+        'utf8',
+      )
+      expect(codexContent.length).toBeGreaterThan(0)
+      expect(claudeContent).toBe(codexContent)
+    }
+  })
+
+  it('has no top-level skills/ directory', async () => {
+    const topSkills = join(projectRoot, 'skills')
+    await expect(stat(topSkills)).rejects.toBeTruthy()
+  })
+
+  it('has no references to the old top-level skills/ path in tracked files', async () => {
+    const candidates = [
+      'AGENTS.md',
+      'README.md',
+      'docs/releasing.md',
+      '.agents/skills/github-release/SKILL.md',
+      '.agents/skills/validate-code-agent-launcher/SKILL.md',
+      '.agents/skills/validation-log-update/SKILL.md',
+    ]
+    for (const file of candidates) {
+      const content = await readFile(join(projectRoot, file), 'utf8')
+      expect(content).not.toContain('`skills/github-release/SKILL.md`')
+      expect(content).not.toContain('`skills/github-release/')
+      expect(content).not.toContain('(../skills/github-release/SKILL.md)')
+      expect(content).not.toContain('bash skills/github-release/scripts/preflight.sh')
+      expect(content).not.toContain('`skills/github-release/scripts/preflight.sh`')
+      expect(content).not.toContain('`.claude/skills/validate-code-agent-launcher/SKILL.md`')
+      expect(content).not.toContain('`.claude/skills/validation-log-update/SKILL.md`')
+    }
   })
 })
