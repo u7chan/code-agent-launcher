@@ -1,4 +1,4 @@
 interface:
-  display_name: "GitHub Submit Change"
-  short_description: "Create consistent branches, commits, and pull requests"
-  default_prompt: "Use $github-submit-change to create a branch, commit the intended changes, and open a pull request."
+  display_name: "GitHub 変更提出"
+  short_description: "一貫したブランチ、コミット、プルリクエストを作成する"
+  default_prompt: "$github-submit-change を使い、ブランチ作成、変更のコミット、プルリクエスト作成を行ってください。"

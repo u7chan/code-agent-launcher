@@ -1,41 +1,41 @@
 ---
 name: github-submit-change
-description: Create Git branches, English prefixed commits, and GitHub pull requests for code-agent-launcher. Use when asked to name a branch, commit changes or PR feedback, or open a PR.
+description: code-agent-launcher向けのGitブランチ、英語Prefix付きcommit、GitHub PRを作成する。ブランチ命名、変更・PR指摘対応のcommit、PR作成を依頼されたときに使用する。
 ---
 
-# GitHub Submit Change
+# GitHub 変更提出
 
-Apply these conventions while performing only the Git operations requested by the user.
+ユーザーが依頼したGit操作だけを行い、以下の規約を適用する。
 
-## Branch names
+## ブランチ名
 
-Use `<type>/<description>` or `<type>/issue-<number>-<description>` when an Issue is known.
+Issueがない場合は`<type>/<description>`、Issueがある場合は`<type>/issue-<number>-<description>`を使用する。
 
-- Types: `feature`, `fix`, `docs`, `refactor`, `test`, `chore`
-- Write lowercase kebab-case.
-- Keep the description short and specific.
+- Typeは`feature`、`fix`、`docs`、`refactor`、`test`、`chore`から選ぶ。
+- 小文字のkebab-caseで書く。
+- Descriptionは短く具体的にする。
 
-Examples: `feature/add-model-filter`, `fix/issue-123-config-loading`.
+例: `feature/add-model-filter`、`fix/issue-123-config-loading`。
 
-## Commit messages
+## コミットメッセージ
 
-Write the message in English as `<prefix>: <summary>`.
+英語で`<prefix>: <summary>`と書く。
 
-- `feat`: new behavior
-- `fix`: bug fix
-- `docs`: documentation only
-- `refactor`: behavior-preserving code change
-- `test`: tests only
-- `chore`: maintenance
-- `build`: build or dependency changes
-- `ci`: CI changes
-- `fb`: PR review feedback
+- `feat`: 新しい動作
+- `fix`: バグ修正
+- `docs`: ドキュメントのみ
+- `refactor`: 動作を変えないコード変更
+- `test`: テストのみ
+- `chore`: 保守作業
+- `build`: ビルドまたは依存関係の変更
+- `ci`: CIの変更
+- `fb`: PRレビュー指摘への対応
 
-Use `fb` instead of the change-type prefix when the commit specifically addresses PR review feedback. Use an imperative, lowercase summary without a trailing period. Examples: `feat: add model filtering`, `fb: handle an empty model list`.
+PRレビュー指摘だけに対応するcommitでは、変更種別のPrefixより`fb`を優先する。Summaryは英語の命令形かつ小文字で始め、末尾にピリオドを付けない。例: `feat: add model filtering`、`fb: handle an empty model list`。
 
-## Pull request body
+## PR本文
 
-Use the following template. Remove sections that do not apply. Use `Closes #123` only when the PR fully resolves the Issue; otherwise use `Refs #123`.
+次のテンプレートを使用し、該当しないセクションは削除する。PRがIssueを完全に解決する場合だけ`Closes #123`を使用し、それ以外は`Refs #123`を使用する。
 
 ```markdown
 ## Issues
@@ -44,25 +44,25 @@ Use the following template. Remove sections that do not apply. Use `Closes #123`
 
 ## Why
 
-Explain why the change is needed.
+変更が必要な理由を書く。
 
 ## Summary
 
-Summarize the resulting behavior.
+変更後の動作を要約する。
 
 ## Changes
 
-- List the main changes.
+- 主な変更点を書く。
 
 ## Verification
 
 - `command` — passed
 ```
 
-## Guardrails
+## 安全境界
 
-- Do not commit or push directly to `main`.
-- Stage only changes that belong to the current task.
-- Do not use force push, amend, rebase, merge, or release operations unless explicitly requested.
-- Run the repository-required checks before opening the PR and report only checks actually run.
-- Stop after the requested operation; a commit-only request does not authorize push or PR creation.
+- `main`へ直接commitまたはpushしない。
+- 現在のタスクに属する変更だけをstageする。
+- 明示依頼がない限り、force push、amend、rebase、merge、release操作を行わない。
+- PR作成前にリポジトリ指定の検証を実行し、実際に実行した結果だけを報告する。
+- 依頼された操作で停止する。commitだけの依頼はpushやPR作成を許可しない。
