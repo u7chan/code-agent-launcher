@@ -326,9 +326,14 @@ describe('github-release repository contract', () => {
 
 describe('skill placement contract', () => {
   const skillsRoot = join(projectRoot, '.agents', 'skills')
-  const expectedSkills = ['github-release', 'validate-code-agent-launcher', 'validation-log-update']
+  const expectedSkills = [
+    'github-release',
+    'github-submit-change',
+    'validate-code-agent-launcher',
+    'validation-log-update',
+  ]
 
-  it('has all 3 skill entities under .agents/skills/', async () => {
+  it('has all 4 skill entities under .agents/skills/', async () => {
     for (const name of expectedSkills) {
       const skillDir = join(skillsRoot, name)
       const s = await stat(skillDir)
