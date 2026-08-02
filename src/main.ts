@@ -20,8 +20,8 @@ export function createMainCommand(): Command {
   program
     .name('cagent')
     .description('Coding-agent launcher with model routing')
-    .version(VERSION, '-v, --version')
-    .addOption(new Option('-V', 'output the version number').hideHelp())
+    .version(VERSION)
+    .addOption(new Option('-v', 'output the version number').hideHelp())
     .argument('[level]', 'task level (low, mid, high, etc.)')
     .option('-l, --level <level>', 'task level')
     .option('-m, --model <model>', 'explicit model id')
@@ -37,7 +37,7 @@ export function createMainCommand(): Command {
         program.error(`error: unknown option '${positionalLevel}'`)
       }
 
-      if (program.opts().V) {
+      if (program.opts().v) {
         console.log(VERSION)
         process.exit(0)
       }

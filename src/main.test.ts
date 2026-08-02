@@ -14,25 +14,25 @@ describe('createMainCommand', () => {
   })
 
   describe('version option', () => {
-    it('registers -v as a version flag', () => {
+    it('registers -V and --version via Commander built-in version', () => {
       const program = createMainCommand()
       const versionOption = program.options.find((option) => option.long === '--version')
       expect(versionOption).toBeDefined()
-      expect(versionOption?.short).toBe('-v')
+      expect(versionOption?.short).toBe('-V')
     })
 
-    it('registers -V as a hidden version alias', () => {
+    it('registers -v as a hidden version alias', () => {
       const program = createMainCommand()
-      const vOption = program.options.find((option) => option.short === '-V')
+      const vOption = program.options.find((option) => option.short === '-v')
       expect(vOption).toBeDefined()
       expect(vOption?.hidden).toBe(true)
     })
 
-    it('displays version with -v instead of unknown level error', async () => {
+    it('displays version with -V via Commander built-in handler', async () => {
       const program = createMainCommand()
       program.exitOverride()
       try {
-        await program.parseAsync(['node', 'cagent', '-v'])
+        await program.parseAsync(['node', 'cagent', '-V'])
         expect.unreachable()
       } catch (err) {
         expect(err).toBeInstanceOf(CommanderError)
@@ -40,7 +40,7 @@ describe('createMainCommand', () => {
       }
     })
 
-    it('displays version with --version', async () => {
+    it('displays version with --version via Commander built-in handler', async () => {
       const program = createMainCommand()
       program.exitOverride()
       try {
@@ -52,7 +52,7 @@ describe('createMainCommand', () => {
       }
     })
 
-    it('displays version with -V', async () => {
+    it('displays version with -v via root action handler', async () => {
       const program = createMainCommand()
       program.exitOverride()
       const exitSpy = spyOn(process, 'exit').mockImplementation((() => {
@@ -60,7 +60,7 @@ describe('createMainCommand', () => {
       }) as never)
       const logSpy = spyOn(console, 'log').mockImplementation(() => {})
       try {
-        await expect(program.parseAsync(['node', 'cagent', '-V'])).rejects.toThrow('process.exit')
+        await expect(program.parseAsync(['node', 'cagent', '-v'])).rejects.toThrow('process.exit')
         expect(logSpy).toHaveBeenCalled()
       } finally {
         exitSpy.mockRestore()
