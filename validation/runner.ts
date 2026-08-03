@@ -15,14 +15,14 @@ import { basename, join, resolve } from 'node:path'
 import YAML from 'yaml'
 import { getAgentAdapter } from '../src/agents/registry.js'
 import { formatCommandSpec } from '../src/command.js'
-import {
-  checkHerdrBin,
-  closePane,
-  getCurrentPane,
-  type HerdrStepRecord,
-  runInPane,
-  splitPane,
-} from '../src/mux/herdr.js'
+import { checkHerdrBin, closePane, getCurrentPane, runInPane, splitPane } from '../src/mux/herdr.js'
+
+type ValidationHerdrStepRecord = {
+  step: 'current' | 'split' | 'run' | 'close'
+  status: 'pass' | 'fail'
+  pane_id?: string
+  error?: string
+}
 
 type AgentLevelEntry = { expected_model: string }
 type AgentMatrix = Record<string, AgentLevelEntry>
@@ -87,7 +87,7 @@ type HerdrLiveSummary = {
     command_summary: string
     cleanup_policy: 'keep' | 'close'
   }
-  steps: HerdrStepRecord[]
+  steps: ValidationHerdrStepRecord[]
   created_panes: string[]
 }
 
@@ -574,7 +574,7 @@ function runHerdrLive(
   expectedModel: string,
   cleanup: boolean,
 ): HerdrLiveSummary {
-  const steps: HerdrStepRecord[] = []
+  const steps: ValidationHerdrStepRecord[] = []
   const createdPanes: string[] = []
   const cwd = process.cwd()
 
@@ -660,7 +660,7 @@ function runHerdrLive(
   return { authorized: true, plan, steps, created_panes: createdPanes }
 }
 
-function tryCleanup(createdPanes: string[], steps: HerdrStepRecord[]): void {
+function tryCleanup(createdPanes: string[], steps: ValidationHerdrStepRecord[]): void {
   const remaining = [...createdPanes]
   for (const pane of createdPanes) {
     try {

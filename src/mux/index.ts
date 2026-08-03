@@ -1,7 +1,6 @@
 import { Command } from 'commander'
 import { getAgentAdapter } from '../agents/registry.js'
 import type { CommandSpec } from '../agents/types.js'
-import { formatCommandSpecForShell } from '../command.js'
 import {
   type Config,
   configPath,
@@ -9,10 +8,16 @@ import {
   loadConfig,
   type MultiplexerAdapter,
 } from '../config.js'
-import { isJsonMode, type JsonWarning, outputJsonSuccess } from '../json-output.js'
+import {
+  isJsonMode,
+  type JsonWarning,
+  outputJsonFailure,
+  outputJsonSuccess,
+} from '../json-output.js'
 import { resolveModel } from '../model.js'
-import { executeHerdrRun, executeHerdrStart } from './herdr.js'
+import { executeHerdrRun, executeHerdrStart, type HerdrContext } from './herdr.js'
 import { executeTmuxRun, executeTmuxStart } from './tmux.js'
+import type { MuxExecutionPlanResult, MuxExecutionResult } from './types.js'
 
 export interface MuxGlobalOptions {
   model?: string
@@ -27,6 +32,21 @@ export class MuxAdapterError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'MuxAdapterError'
+  }
+}
+
+export class MuxExecutionError extends MuxAdapterError {
+  readonly result: MuxExecutionResult
+  readonly operation: string
+  readonly outputRendered: boolean
+
+  constructor(result: MuxExecutionResult, outputRendered: boolean) {
+    const failedStep = result.steps.find((step) => step.step === result.failed_step)
+    super(failedStep?.error ?? `mux ${result.mode} failed at ${result.failed_step ?? 'unknown'}`)
+    this.name = 'MuxExecutionError'
+    this.result = result
+    this.operation = `mux.${result.mode}`
+    this.outputRendered = outputRendered
   }
 }
 
@@ -73,7 +93,7 @@ function resolveMuxCommandWithMetadata(
   })
 
   const warnings: JsonWarning[] = []
-  const json = muxOpts.dryRun === true && isJsonMode(muxOpts)
+  const json = isJsonMode(muxOpts)
   for (const warning of resolved.warnings) {
     if (json) {
       warnings.push({
@@ -144,56 +164,33 @@ async function dispatchMux(mode: 'start' | 'run', level: string, command: Comman
   const cwd = process.cwd()
   const dryRun = muxOpts.dryRun === true
 
-  if (dryRun && isJsonMode(muxOpts)) {
-    const data: {
-      adapter: string
-      mode: 'start' | 'run'
-      agent: string
-      level: string
-      model: string
-      effort?: string
-      command: { executable: string; args: string[]; env: Record<string, string> }
-      pane_operations?: Array<Record<string, unknown>>
-    } = {
-      adapter: adapterName,
-      mode,
-      agent: agentId,
-      level: resolved.levelName ?? level,
-      model: resolved.modelId,
-      effort: resolved.effort,
-      command: {
-        executable: commandSpec.command,
-        args: commandSpec.args,
-        env: commandSpec.env ?? {},
-      },
-    }
-    if (adapterName === 'herdr') {
-      data.pane_operations = [
-        { step: 1, action: 'get_current_pane', description: 'get current pane ID' },
-        { step: 2, action: 'split_pane', direction: 'right', cwd },
-        {
-          step: 3,
-          action: 'run_in_pane',
-          command: formatCommandSpecForShell(commandSpec),
-        },
-      ]
-    }
-    outputJsonSuccess(`mux.${mode}.plan`, data, warnings)
-    return
-  }
-
   if (adapterName === 'herdr') {
-    const ctx = {
+    const ctx: HerdrContext = {
       command: commandSpec,
       cwd,
       extraArgs,
       dryRun,
     }
-    if (mode === 'start') {
-      executeHerdrStart(ctx)
-    } else {
-      executeHerdrRun(ctx)
+
+    const result = mode === 'start' ? executeHerdrStart(ctx) : executeHerdrRun(ctx)
+    if (dryRun) {
+      const plan = result as MuxExecutionPlanResult
+      const data: MuxExecutionPlanResult = {
+        ...plan,
+        agent: agentId,
+        level: resolved.levelName ?? level,
+        model: resolved.modelId,
+        effort: resolved.effort,
+      }
+      if (isJsonMode(muxOpts)) {
+        outputJsonSuccess(`mux.${mode}.plan`, data, warnings)
+      } else {
+        printMuxDryRunPlan(data)
+      }
+      return
     }
+
+    reportMuxResult(result, muxOpts, warnings)
     return
   }
 
@@ -213,6 +210,80 @@ async function dispatchMux(mode: 'start' | 'run', level: string, command: Comman
   }
 
   throw new MuxAdapterError(`unknown multiplexer adapter: ${adapterName}`)
+}
+
+function failedStepMessage(result: MuxExecutionResult): string {
+  const failedStep = result.steps.find((step) => step.step === result.failed_step)
+  return failedStep?.error ?? `mux ${result.mode} failed at ${result.failed_step ?? 'unknown'}`
+}
+
+export function printMuxDryRunPlan(plan: MuxExecutionPlanResult): void {
+  console.log('# Herdr dry-run command sequence:')
+  console.log('No Herdr command was invoked.')
+  console.log('herdr pane current --current')
+  console.log(`herdr pane split --pane <current-pane> --direction right --cwd ${plan.cwd}`)
+  console.log(`herdr pane run <created-pane> ${plan.pane_operations[2]?.display_command ?? ''}`)
+  console.log('Pane IDs shown in this plan are placeholders, not resource IDs.')
+}
+
+export function printMuxExecutionSuccess(result: MuxExecutionResult): void {
+  console.log(`Created pane: ${result.created_pane_id ?? '<unknown>'}`)
+  console.log('Dispatched agent command: yes')
+  console.log('Task completion: not observed by cagent')
+}
+
+export function printMuxExecutionFailure(result: MuxExecutionResult): void {
+  console.error(`Error: ${failedStepMessage(result)}`)
+  console.error('')
+  if (result.created_pane_id) {
+    console.error('Created pane:')
+    console.error(`  ${result.created_pane_id}`)
+    console.error('')
+  }
+  console.error('Failed step:')
+  console.error(`  ${result.failed_step ?? 'unknown'}`)
+  if (result.created_pane_id) {
+    console.error('')
+    console.error('The pane was not closed automatically because command state may be ambiguous.')
+    console.error('Inspect it with:')
+    console.error(`  herdr pane get ${result.created_pane_id}`)
+    console.error('')
+    console.error('Close it after inspection with:')
+    console.error(`  herdr pane close ${result.created_pane_id}`)
+  }
+  console.error('')
+  console.error('Task completion: not observed by cagent')
+}
+
+function muxResultDetails(result: MuxExecutionResult): Record<string, unknown> {
+  return { ...result }
+}
+
+function reportMuxResult(
+  result: MuxExecutionResult,
+  muxOpts: MuxGlobalOptions,
+  warnings: JsonWarning[],
+): void {
+  if (result.failed_step) {
+    if (isJsonMode(muxOpts)) {
+      outputJsonFailure(
+        `mux.${result.mode}`,
+        'MUX_EXECUTION_FAILED',
+        failedStepMessage(result),
+        muxResultDetails(result),
+        'Inspect the created pane before retrying or closing it.',
+      )
+    } else {
+      printMuxExecutionFailure(result)
+    }
+    throw new MuxExecutionError(result, true)
+  }
+
+  if (isJsonMode(muxOpts)) {
+    outputJsonSuccess(`mux.${result.mode}`, result, warnings)
+  } else {
+    printMuxExecutionSuccess(result)
+  }
 }
 
 export function createMuxCommand(): Command {
