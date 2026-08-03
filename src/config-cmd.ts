@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { Command } from 'commander'
 import { ConfigError, configPath, loadConfig } from './config.js'
+import { isJsonMode, outputJsonSuccess } from './json-output.js'
 import { assertTty } from './tty.js'
 
 function resolveConfigPath(): string {
@@ -87,10 +88,19 @@ export function createConfigCommand(): Command {
 
   command.description('Manage cagent configuration')
 
-  command
+  const pathCommand = command
     .command('path')
     .description('Show the current config file path')
+    .option('--json', 'output control information as JSON')
     .action(() => {
+      const options = pathCommand.optsWithGlobals() as { json?: boolean }
+      if (isJsonMode(options)) {
+        outputJsonSuccess('config.path', {
+          path: configPath(),
+          source: process.env.CAGENT_CONFIG ? 'CAGENT_CONFIG' : 'default',
+        })
+        return
+      }
       console.log(configPath())
     })
 
@@ -99,10 +109,15 @@ export function createConfigCommand(): Command {
     .description('Create the default config file if it does not exist')
     .option('-f, --force', 'overwrite an existing config file')
     .option('-d, --dry-run', 'print the default config without writing it')
-    .action((options: { force?: boolean; dryRun?: boolean }) => {
+    .option('--json', 'output control information as JSON')
+    .action((options: { force?: boolean; dryRun?: boolean; json?: boolean }) => {
       const path = resolveConfigPath()
 
-      const globals = init.optsWithGlobals() as { dryRun?: boolean }
+      const globals = init.optsWithGlobals() as { dryRun?: boolean; json?: boolean }
+      if (isJsonMode({ json: options.json || globals.json })) {
+        outputJsonSuccess('config.init', { config: DEFAULT_CONFIG })
+        return
+      }
       if (options.dryRun || globals.dryRun) {
         console.log(DEFAULT_CONFIG)
         return
