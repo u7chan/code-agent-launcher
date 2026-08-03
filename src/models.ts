@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import { getAgentAdapter } from './agents/registry.js'
 import { formatCommandSpec, runCommandSpec } from './command.js'
 import { type Config, getAgent, loadConfig } from './config.js'
+import { isJsonMode, outputJsonSuccess } from './json-output.js'
 
 export function formatConfiguredModels(config: Config, agentFilter?: string): string {
   const agentIds = Object.keys(config.agents).filter((id) => !agentFilter || id === agentFilter)
@@ -71,6 +72,32 @@ export function createModelsCommand(): Command {
         console.warn(
           'Warning: --refresh has no effect on "cagent models". Use "cagent models available --refresh" instead.',
         )
+      }
+
+      if (isJsonMode(globals)) {
+        const agents = Object.entries(config.agents).map(([id, agent]) => {
+          const agentWithDefaultLevel = agent as typeof agent & { default_level?: string }
+          return {
+            id,
+            provider: agent.provider,
+            bin: agent.bin,
+            model_id_prefix: agent.model_id_prefix ?? true,
+            default_level: agentWithDefaultLevel.default_level ?? null,
+            levels: Object.entries(agent.levels).map(([name, level]) => ({
+              name,
+              description: level.description,
+              default_model: level.default_model,
+              models: level.models,
+              effort: level.effort,
+            })),
+          }
+        })
+        outputJsonSuccess('models', {
+          default_agent: config.default_agent,
+          default_level: config.default_level,
+          agents,
+        })
+        return
       }
       console.log(formatConfiguredModels(config, explicitAgent ?? undefined))
     })
