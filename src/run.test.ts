@@ -63,6 +63,13 @@ describe('parseRunArgv', () => {
       extraArgs: ['prompt'],
     })
   })
+
+  it('treats --json as a flag-like option', () => {
+    expect(parseRunArgv(['node', 'cagent', 'run', '--json', 'low', '--dry-run'])).toEqual({
+      positionalLevel: 'low',
+      extraArgs: [],
+    })
+  })
 })
 
 describe('run JSON output', () => {
@@ -98,9 +105,9 @@ multiplexer:
         'node',
         'cagent',
         'run',
+        '--json',
         'mid',
         '--dry-run',
-        '--json',
         '--',
         'hello',
       ])
@@ -110,6 +117,7 @@ multiplexer:
       expect(output.ok).toBe(true)
       expect(output.operation).toBe('run.plan')
       expect(output.data.interactive).toBe(false)
+      expect(output.data.config_path).toBe(file)
       expect(output.data.command.args).toContain('hello')
     } finally {
       logSpy.mockRestore()
@@ -119,7 +127,64 @@ multiplexer:
     }
   })
 
+  it('places model resolution warnings in the JSON envelope', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cagent-run-warning-json-test-'))
+    const file = join(dir, 'config.yaml')
+    writeFileSync(
+      file,
+      `default_agent: codex
+default_level: mid
+agents:
+  codex:
+    bin: node
+    provider: codex
+    model_id_prefix: false
+    levels:
+      mid:
+        description: Normal
+        default_model: gpt-5
+        models: [gpt-5]
+multiplexer:
+  default: herdr
+  herdr: { enabled: true }
+`,
+    )
+    const originalConfig = process.env.CAGENT_CONFIG
+    process.env.CAGENT_CONFIG = file
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const command = createMainCommand()
+      command.addCommand(createRunCommand())
+      await command.parseAsync([
+        'node',
+        'cagent',
+        'run',
+        'mid',
+        '--dry-run',
+        '--json',
+        '--model',
+        'codex/unknown-model',
+        '--',
+        'hello',
+      ])
+      expect(logSpy).toHaveBeenCalledTimes(1)
+      expect(warnSpy).not.toHaveBeenCalled()
+      const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+      expect(output.warnings).toHaveLength(1)
+      expect(output.warnings[0].code).toBe('UNKNOWN_MODEL')
+      expect(output.warnings[0].details.model).toBe('unknown-model')
+    } finally {
+      warnSpy.mockRestore()
+      logSpy.mockRestore()
+      if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
+      else process.env.CAGENT_CONFIG = originalConfig
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('rejects run JSON without dry-run', async () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {})
     const errorSpy = spyOn(console, 'error').mockImplementation(() => {})
     const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('process.exit')
@@ -130,13 +195,18 @@ multiplexer:
       await expect(command.parseAsync(['node', 'cagent', 'run', 'mid', '--json'])).rejects.toThrow(
         'process.exit',
       )
-      expect(errorSpy.mock.calls[0]?.[0]).toContain(
-        'cagent: --json without --dry-run is not supported for code execution.',
-      )
+      expect(logSpy).toHaveBeenCalledTimes(1)
+      const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+      expect(output.schema_version).toBe(1)
+      expect(output.ok).toBe(false)
+      expect(output.operation).toBe('run.plan')
+      expect(output.error.code).toBe('USAGE_ERROR')
+      expect(errorSpy).not.toHaveBeenCalled()
       expect(exitSpy).toHaveBeenCalledWith(1)
     } finally {
       exitSpy.mockRestore()
       errorSpy.mockRestore()
+      logSpy.mockRestore()
     }
   })
 })

@@ -188,6 +188,7 @@ describe('mux JSON output', () => {
     const originalConfig = process.env.CAGENT_CONFIG
     process.env.CAGENT_CONFIG = file
     const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
     try {
       const program = createMainCommand()
       program.addCommand(createMuxCommand())
@@ -199,10 +200,13 @@ describe('mux JSON output', () => {
         'mid',
         '--dry-run',
         '--json',
+        '--model',
+        'codex/unknown-model',
         '--',
         'hello',
       ])
       expect(logSpy).toHaveBeenCalledTimes(1)
+      expect(warnSpy).not.toHaveBeenCalled()
       const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
       expect(output.schema_version).toBe(1)
       expect(output.ok).toBe(true)
@@ -210,8 +214,11 @@ describe('mux JSON output', () => {
       expect(output.data.adapter).toBe('herdr')
       expect(output.data.mode).toBe('run')
       expect(output.data.pane_operations).toHaveLength(3)
+      expect(output.warnings).toHaveLength(1)
+      expect(output.warnings[0].code).toBe('UNKNOWN_MODEL')
       expect(String(logSpy.mock.calls[0]?.[0])).not.toContain('# Herdr dry-run')
     } finally {
+      warnSpy.mockRestore()
       logSpy.mockRestore()
       if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
       else process.env.CAGENT_CONFIG = originalConfig

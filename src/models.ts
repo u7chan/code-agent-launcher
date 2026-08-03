@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import { getAgentAdapter } from './agents/registry.js'
 import { formatCommandSpec, runCommandSpec } from './command.js'
 import { type Config, getAgent, loadConfig } from './config.js'
-import { isJsonMode, outputJsonSuccess } from './json-output.js'
+import { isJsonMode, type JsonWarning, outputJsonSuccess } from './json-output.js'
 
 export function formatConfiguredModels(config: Config, agentFilter?: string): string {
   const agentIds = Object.keys(config.agents).filter((id) => !agentFilter || id === agentFilter)
@@ -72,13 +72,23 @@ export function createModelsCommand(): Command {
           process.exit(1)
         }
       }
+      const json = isJsonMode(globals)
+      const warnings: JsonWarning[] = []
       if (globals.refresh) {
-        console.warn(
-          'Warning: --refresh has no effect on "cagent models". Use "cagent models available --refresh" instead.',
-        )
+        const message =
+          '--refresh has no effect on "cagent models". Use "cagent models available --refresh" instead.'
+        if (json) {
+          warnings.push({
+            code: 'REFRESH_IGNORED',
+            message,
+            details: { option: '--refresh' },
+          })
+        } else {
+          console.warn(`Warning: ${message}`)
+        }
       }
 
-      if (isJsonMode(globals)) {
+      if (json) {
         const agents = Object.entries(config.agents).map(([id, agent]) => {
           const agentWithDefaultLevel = agent as typeof agent & { default_level?: string }
           return {
@@ -96,11 +106,15 @@ export function createModelsCommand(): Command {
             })),
           }
         })
-        outputJsonSuccess('models', {
-          default_agent: config.default_agent,
-          default_level: config.default_level,
-          agents,
-        })
+        outputJsonSuccess(
+          'models',
+          {
+            default_agent: config.default_agent,
+            default_level: config.default_level,
+            agents,
+          },
+          warnings,
+        )
         return
       }
       console.log(formatConfiguredModels(config, explicitAgent ?? undefined))

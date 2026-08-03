@@ -137,6 +137,7 @@ describe('createMainCommand', () => {
       expect(output.data.interactive).toBe(true)
       expect(output.data.agent).toBe('codex')
       expect(output.data.level).toBe('mid')
+      expect(output.data.config_path).toBe(config)
       expect(output.data.command.executable).toBe('node')
       expect(String(logSpy.mock.calls[0]?.[0])).not.toContain('# Resolved level')
     } finally {
@@ -148,6 +149,7 @@ describe('createMainCommand', () => {
   })
 
   it('rejects bare cagent JSON without dry-run', async () => {
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {})
     const errorSpy = spyOn(console, 'error').mockImplementation(() => {})
     const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('process.exit')
@@ -157,13 +159,52 @@ describe('createMainCommand', () => {
       await expect(program.parseAsync(['node', 'cagent', 'mid', '--json'])).rejects.toThrow(
         'process.exit',
       )
-      expect(errorSpy.mock.calls[0]?.[0]).toContain(
-        'cagent: --json requires --dry-run for [level] command',
-      )
+      expect(logSpy).toHaveBeenCalledTimes(1)
+      const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+      expect(output.schema_version).toBe(1)
+      expect(output.ok).toBe(false)
+      expect(output.operation).toBe('run.plan')
+      expect(output.error.code).toBe('USAGE_ERROR')
+      expect(errorSpy).not.toHaveBeenCalled()
       expect(exitSpy).toHaveBeenCalledWith(1)
     } finally {
       exitSpy.mockRestore()
       errorSpy.mockRestore()
+      logSpy.mockRestore()
+    }
+  })
+
+  it('places model resolution warnings in the JSON envelope', async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'cagent-main-warning-json-test-'))
+    const config = join(tmpDir, 'config.yaml')
+    writeTestConfig(config, 'node')
+
+    const originalConfig = process.env.CAGENT_CONFIG
+    process.env.CAGENT_CONFIG = config
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const program = createMainCommand()
+      await program.parseAsync([
+        'node',
+        'cagent',
+        '--dry-run',
+        '--json',
+        '--model',
+        'codex/unknown-model',
+      ])
+      expect(logSpy).toHaveBeenCalledTimes(1)
+      expect(warnSpy).not.toHaveBeenCalled()
+      const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+      expect(output.warnings).toHaveLength(1)
+      expect(output.warnings[0].code).toBe('UNKNOWN_MODEL')
+      expect(output.warnings[0].details.model).toBe('unknown-model')
+    } finally {
+      warnSpy.mockRestore()
+      logSpy.mockRestore()
+      if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
+      else process.env.CAGENT_CONFIG = originalConfig
+      rmSync(tmpDir, { recursive: true, force: true })
     }
   })
 

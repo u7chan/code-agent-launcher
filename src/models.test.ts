@@ -89,11 +89,13 @@ multiplexer:
     const originalConfig = process.env.CAGENT_CONFIG
     process.env.CAGENT_CONFIG = file
     const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
     try {
       const command = createMainCommand()
       command.addCommand(createModelsCommand())
-      await command.parseAsync(['node', 'cagent', 'models', '--json'])
+      await command.parseAsync(['node', 'cagent', 'models', '--refresh', '--json'])
       expect(logSpy).toHaveBeenCalledTimes(1)
+      expect(warnSpy).not.toHaveBeenCalled()
       const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
       expect(output.schema_version).toBe(1)
       expect(output.ok).toBe(true)
@@ -106,8 +108,11 @@ multiplexer:
         model_id_prefix: false,
         default_level: null,
       })
+      expect(output.warnings).toHaveLength(1)
+      expect(output.warnings[0].code).toBe('REFRESH_IGNORED')
       expect(String(logSpy.mock.calls[0]?.[0])).not.toContain('Agent:')
     } finally {
+      warnSpy.mockRestore()
       logSpy.mockRestore()
       if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
       else process.env.CAGENT_CONFIG = originalConfig

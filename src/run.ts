@@ -1,8 +1,13 @@
 import { Command } from 'commander'
 import { getAgentAdapter } from './agents/registry.js'
 import { formatCommandSpec, runCommandSpec } from './command.js'
-import { configPath, getAgent, loadConfig } from './config.js'
-import { isJsonMode, outputJsonSuccess } from './json-output.js'
+import { getAgent, loadConfig, resolveConfigPath } from './config.js'
+import {
+  isJsonMode,
+  type JsonWarning,
+  outputJsonFailure,
+  outputJsonSuccess,
+} from './json-output.js'
 import { resolveModel } from './model.js'
 
 export interface RunCommandOptions {
@@ -45,6 +50,7 @@ export function parseRunArgv(argv: string[]): {
       if (
         arg === '--dry-run' ||
         arg === '-d' ||
+        arg === '--json' ||
         arg === '--help' ||
         arg === '-h' ||
         arg === '--version' ||
@@ -103,9 +109,12 @@ export function createRunCommand(): Command {
       const json = isJsonMode(globals)
 
       if (json && !dryRun) {
-        console.error(
-          'cagent: --json without --dry-run is not supported for code execution.\n' +
-            'Use `cagent run --dry-run [level] --json` for cagent control metadata.\n' +
+        outputJsonFailure(
+          'run.plan',
+          'USAGE_ERROR',
+          '--json requires --dry-run for this command',
+          { suggestion: 'Use --dry-run --json or pass --json after --' },
+          'Use `cagent run --dry-run [level] --json` for cagent control metadata.\n' +
             'Pass `--json` after `--` when requesting JSON from the underlying agent CLI.',
         )
         process.exit(1)
@@ -125,8 +134,17 @@ export function createRunCommand(): Command {
         envEffort,
       })
 
+      const warnings: JsonWarning[] = []
       for (const warning of resolved.warnings) {
-        console.warn(`Warning: ${warning}`)
+        if (json) {
+          warnings.push({
+            code: 'UNKNOWN_MODEL',
+            message: warning,
+            details: { model: resolved.modelId },
+          })
+        } else {
+          console.warn(`Warning: ${warning}`)
+        }
       }
 
       const spec = adapter.buildRunCommand({
@@ -145,19 +163,23 @@ export function createRunCommand(): Command {
             ? resolved.levelName
             : config.default_level
         if (json) {
-          outputJsonSuccess('run.plan', {
-            interactive: false,
-            config_path: configPath(),
-            agent: effectiveAgentId,
-            level: displayLevel,
-            model: resolved.modelId,
-            effort: resolved.effort,
-            command: {
-              executable: spec.command,
-              args: spec.args,
-              env: spec.env ?? {},
+          outputJsonSuccess(
+            'run.plan',
+            {
+              interactive: false,
+              config_path: resolveConfigPath(),
+              agent: effectiveAgentId,
+              level: displayLevel,
+              model: resolved.modelId,
+              effort: resolved.effort,
+              command: {
+                executable: spec.command,
+                args: spec.args,
+                env: spec.env ?? {},
+              },
             },
-          })
+            warnings,
+          )
           return
         }
         console.log(`# Resolved level: ${displayLevel}`)

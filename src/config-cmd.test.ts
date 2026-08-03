@@ -116,7 +116,8 @@ describe('createConfigCommand', () => {
       const program = createMainCommand()
       program.addCommand(createConfigCommand())
       const logSpy = spyOn(console, 'log').mockImplementation(() => {})
-      process.env.CAGENT_CONFIG = join(tmpDir, 'custom-config.yaml')
+      const customPath = join(tmpDir, 'custom-config.yaml')
+      process.env.CAGENT_CONFIG = customPath
       try {
         await program.parseAsync(['node', 'cagent', 'config', 'path', '--json'])
         expect(logSpy).toHaveBeenCalledTimes(1)
@@ -124,7 +125,7 @@ describe('createConfigCommand', () => {
         expect(output.schema_version).toBe(1)
         expect(output.ok).toBe(true)
         expect(output.operation).toBe('config.path')
-        expect(output.data.path).toBe(configPath())
+        expect(output.data.path).toBe(customPath)
         expect(output.data.source).toBe('CAGENT_CONFIG')
       } finally {
         logSpy.mockRestore()

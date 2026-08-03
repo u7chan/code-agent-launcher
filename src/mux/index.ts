@@ -9,7 +9,7 @@ import {
   loadConfig,
   type MultiplexerAdapter,
 } from '../config.js'
-import { isJsonMode, outputJsonSuccess } from '../json-output.js'
+import { isJsonMode, type JsonWarning, outputJsonSuccess } from '../json-output.js'
 import { resolveModel } from '../model.js'
 import { executeHerdrRun, executeHerdrStart } from './herdr.js'
 import { executeTmuxRun, executeTmuxStart } from './tmux.js'
@@ -47,6 +47,7 @@ interface ResolvedMuxCommand {
   commandSpec: CommandSpec
   agentId: string
   resolved: ReturnType<typeof resolveModel>
+  warnings: JsonWarning[]
 }
 
 function resolveMuxCommandWithMetadata(
@@ -71,8 +72,18 @@ function resolveMuxCommandWithMetadata(
     envEffort: process.env.CAGENT_EFFORT,
   })
 
+  const warnings: JsonWarning[] = []
+  const json = muxOpts.dryRun === true && isJsonMode(muxOpts)
   for (const warning of resolved.warnings) {
-    console.warn(`Warning: ${warning}`)
+    if (json) {
+      warnings.push({
+        code: 'UNKNOWN_MODEL',
+        message: warning,
+        details: { model: resolved.modelId },
+      })
+    } else {
+      console.warn(`Warning: ${warning}`)
+    }
   }
 
   if (mode === 'start' && agentId === 'opencode-go' && resolved.effort) {
@@ -97,7 +108,7 @@ function resolveMuxCommandWithMetadata(
       ? (codingAdapter.buildStartCommand?.(context) ?? codingAdapter.buildRunCommand(context))
       : codingAdapter.buildRunCommand(context)
 
-  return { adapterName, commandSpec, agentId, resolved }
+  return { adapterName, commandSpec, agentId, resolved, warnings }
 }
 
 export function resolveMuxCommand(
@@ -122,7 +133,7 @@ async function dispatchMux(mode: 'start' | 'run', level: string, command: Comman
   const config = loadConfig()
   const extraArgs = command.args.slice(1)
 
-  const { adapterName, commandSpec, agentId, resolved } = resolveMuxCommandWithMetadata(
+  const { adapterName, commandSpec, agentId, resolved, warnings } = resolveMuxCommandWithMetadata(
     config,
     mode,
     level,
@@ -167,7 +178,7 @@ async function dispatchMux(mode: 'start' | 'run', level: string, command: Comman
         },
       ]
     }
-    outputJsonSuccess(`mux.${mode}.plan`, data)
+    outputJsonSuccess(`mux.${mode}.plan`, data, warnings)
     return
   }
 

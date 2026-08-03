@@ -2,13 +2,9 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { Command } from 'commander'
-import { ConfigError, configPath, loadConfig } from './config.js'
+import { ConfigError, configPath, loadConfig, resolveConfigPath } from './config.js'
 import { isJsonMode, outputJsonSuccess } from './json-output.js'
 import { assertTty } from './tty.js'
-
-function resolveConfigPath(): string {
-  return process.env.CAGENT_CONFIG ?? configPath()
-}
 
 export const DEFAULT_CONFIG = `default_agent: codex
 default_level: mid
@@ -96,7 +92,7 @@ export function createConfigCommand(): Command {
       const options = pathCommand.optsWithGlobals() as { json?: boolean }
       if (isJsonMode(options)) {
         outputJsonSuccess('config.path', {
-          path: configPath(),
+          path: resolveConfigPath(),
           source: process.env.CAGENT_CONFIG ? 'CAGENT_CONFIG' : 'default',
         })
         return

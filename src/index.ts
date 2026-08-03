@@ -20,7 +20,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  if (process.argv.includes('--json')) {
+  const separatorIndex = process.argv.indexOf('--')
+  const wrapperArgv = process.argv.slice(0, separatorIndex === -1 ? undefined : separatorIndex)
+  if (wrapperArgv.includes('--json')) {
     const message = err instanceof Error ? err.message : String(err)
     outputJsonFailure('error', 'INTERNAL_ERROR', message)
   } else {
