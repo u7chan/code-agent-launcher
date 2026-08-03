@@ -2,7 +2,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ConfigError, configPath, getAgent, loadConfig } from './config.js'
+import {
+  ConfigError,
+  configPath,
+  getAgent,
+  loadConfig,
+  resolveConfigPath,
+  resolveConfigPathWithSource,
+} from './config.js'
 
 describe('loadConfig', () => {
   let tmpDir: string
@@ -250,6 +257,67 @@ describe('configPath', () => {
         process.env.XDG_CONFIG_HOME = originalXdg
       }
     }
+  })
+})
+
+describe('resolveConfigPath', () => {
+  let tmpDir: string
+  let originalConfig: string | undefined
+  let originalXdg: string | undefined
+  let originalHome: string | undefined
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'cagent-resolve-path-test-'))
+    originalConfig = process.env.CAGENT_CONFIG
+    originalXdg = process.env.XDG_CONFIG_HOME
+    originalHome = process.env.HOME
+  })
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true })
+    if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
+    else process.env.CAGENT_CONFIG = originalConfig
+    if (originalXdg === undefined) delete process.env.XDG_CONFIG_HOME
+    else process.env.XDG_CONFIG_HOME = originalXdg
+    if (originalHome === undefined) delete process.env.HOME
+    else process.env.HOME = originalHome
+  })
+
+  it('prioritizes CAGENT_CONFIG and reports its source', () => {
+    const customPath = join(tmpDir, 'custom.yaml')
+    process.env.CAGENT_CONFIG = customPath
+    process.env.XDG_CONFIG_HOME = join(tmpDir, 'xdg')
+
+    expect(resolveConfigPath()).toBe(customPath)
+    expect(resolveConfigPathWithSource()).toEqual({
+      path: customPath,
+      source: 'CAGENT_CONFIG',
+    })
+  })
+
+  it('uses XDG_CONFIG_HOME and reports its source', () => {
+    const xdgHome = join(tmpDir, 'xdg')
+    delete process.env.CAGENT_CONFIG
+    process.env.XDG_CONFIG_HOME = xdgHome
+
+    expect(resolveConfigPath()).toBe(join(xdgHome, 'cagent', 'config.yaml'))
+    expect(resolveConfigPathWithSource()).toEqual({
+      path: join(xdgHome, 'cagent', 'config.yaml'),
+      source: 'XDG_CONFIG_HOME',
+    })
+  })
+
+  it('falls back to HOME and reports its source', () => {
+    const home = join(tmpDir, 'home')
+    delete process.env.CAGENT_CONFIG
+    delete process.env.XDG_CONFIG_HOME
+    process.env.HOME = home
+
+    expect(resolveConfigPath()).toBe(join(home, '.config', 'cagent', 'config.yaml'))
+    expect(resolveConfigPathWithSource()).toEqual({
+      path: join(home, '.config', 'cagent', 'config.yaml'),
+      source: 'HOME',
+    })
   })
 })
 

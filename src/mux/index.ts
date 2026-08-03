@@ -3,10 +3,10 @@ import { getAgentAdapter } from '../agents/registry.js'
 import type { CommandSpec } from '../agents/types.js'
 import {
   type Config,
-  configPath,
   getAgent,
   loadConfig,
   type MultiplexerAdapter,
+  resolveConfigPath,
 } from '../config.js'
 import {
   isJsonMode,
@@ -54,9 +54,7 @@ export function validateMuxAdapter(config: Config, adapterName: string): Multipl
   const adapter = config.multiplexer[adapterName]
   if (!adapter || typeof adapter !== 'object' || !(adapter as MultiplexerAdapter).enabled) {
     throw new MuxAdapterError(
-      `multiplexer adapter is not enabled: ${adapterName}\n\nCheck:\n  ${
-        process.env.CAGENT_CONFIG ?? configPath()
-      }`,
+      `multiplexer adapter is not enabled: ${adapterName}\n\nCheck:\n  ${resolveConfigPath()}`,
     )
   }
   return adapter as MultiplexerAdapter

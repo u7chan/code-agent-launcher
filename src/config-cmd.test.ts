@@ -63,6 +63,7 @@ describe('createConfigCommand', () => {
   let tmpDir: string
   let originalConfig: string | undefined
   let originalXdg: string | undefined
+  let originalHome: string | undefined
   let originalEditor: string | undefined
   let originalVisual: string | undefined
 
@@ -70,6 +71,7 @@ describe('createConfigCommand', () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'cagent-config-cmd-test-'))
     originalConfig = process.env.CAGENT_CONFIG
     originalXdg = process.env.XDG_CONFIG_HOME
+    originalHome = process.env.HOME
     originalEditor = process.env.EDITOR
     originalVisual = process.env.VISUAL
     process.env.XDG_CONFIG_HOME = join(tmpDir, 'xdg-config')
@@ -88,6 +90,11 @@ describe('createConfigCommand', () => {
     } else {
       process.env.XDG_CONFIG_HOME = originalXdg
     }
+    if (originalHome === undefined) {
+      delete process.env.HOME
+    } else {
+      process.env.HOME = originalHome
+    }
     if (originalEditor === undefined) {
       delete process.env.EDITOR
     } else {
@@ -101,12 +108,43 @@ describe('createConfigCommand', () => {
   })
 
   describe('config path', () => {
-    it('prints the current config file path', async () => {
+    it('prints the XDG config file path on one line', async () => {
       const command = createConfigCommand()
       const logSpy = spyOn(console, 'log').mockImplementation(() => {})
       try {
         await command.parseAsync(['node', 'cagent', 'path'])
-        expect(logSpy).toHaveBeenCalledWith(configPath())
+        expect(logSpy).toHaveBeenCalledTimes(1)
+        expect(logSpy.mock.calls[0]).toEqual([join(tmpDir, 'xdg-config', 'cagent', 'config.yaml')])
+      } finally {
+        logSpy.mockRestore()
+      }
+    })
+
+    it('prints CAGENT_CONFIG even when the file does not exist', async () => {
+      const customPath = join(tmpDir, 'missing-custom-config.yaml')
+      process.env.CAGENT_CONFIG = customPath
+      const command = createConfigCommand()
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+      try {
+        await command.parseAsync(['node', 'cagent', 'path'])
+        expect(logSpy).toHaveBeenCalledTimes(1)
+        expect(logSpy.mock.calls[0]).toEqual([customPath])
+        expect(existsSync(customPath)).toBe(false)
+      } finally {
+        logSpy.mockRestore()
+      }
+    })
+
+    it('prints the HOME fallback path when XDG_CONFIG_HOME is unset', async () => {
+      const home = join(tmpDir, 'home')
+      process.env.HOME = home
+      delete process.env.XDG_CONFIG_HOME
+      const command = createConfigCommand()
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+      try {
+        await command.parseAsync(['node', 'cagent', 'path'])
+        expect(logSpy).toHaveBeenCalledTimes(1)
+        expect(logSpy.mock.calls[0]).toEqual([join(home, '.config', 'cagent', 'config.yaml')])
       } finally {
         logSpy.mockRestore()
       }

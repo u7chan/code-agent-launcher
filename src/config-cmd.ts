@@ -2,7 +2,12 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { Command } from 'commander'
-import { ConfigError, configPath, loadConfig, resolveConfigPath } from './config.js'
+import {
+  ConfigError,
+  loadConfig,
+  resolveConfigPath,
+  resolveConfigPathWithSource,
+} from './config.js'
 import { isJsonMode, outputJsonSuccess } from './json-output.js'
 import { assertTty } from './tty.js'
 
@@ -91,13 +96,10 @@ export function createConfigCommand(): Command {
     .action(() => {
       const options = pathCommand.optsWithGlobals() as { json?: boolean }
       if (isJsonMode(options)) {
-        outputJsonSuccess('config.path', {
-          path: resolveConfigPath(),
-          source: process.env.CAGENT_CONFIG ? 'CAGENT_CONFIG' : 'default',
-        })
+        outputJsonSuccess('config.path', resolveConfigPathWithSource())
         return
       }
-      console.log(configPath())
+      console.log(resolveConfigPath())
     })
 
   const init = command
