@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CommanderError } from 'commander'
 import { createMainCommand } from './main.js'
+import { VERSION } from './version.js'
 
 function mockTty(stdinIsTTY: boolean, stdoutIsTTY: boolean): () => void {
   const stdinDescriptor = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
@@ -182,6 +183,24 @@ describe('createMainCommand', () => {
         restoreTty()
       }
     })
+
+    it('displays version with -v without a TTY', async () => {
+      const program = createMainCommand()
+      const exitSpy = spyOn(process, 'exit').mockImplementation((() => {
+        throw new Error('process.exit')
+      }) as never)
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+      const restoreTty = mockTty(false, false)
+      try {
+        await expect(program.parseAsync(['node', 'cagent', '-v'])).rejects.toThrow('process.exit')
+        expect(exitSpy).toHaveBeenCalledWith(0)
+        expect(logSpy).toHaveBeenCalledWith(VERSION)
+      } finally {
+        exitSpy.mockRestore()
+        logSpy.mockRestore()
+        restoreTty()
+      }
+    })
   })
 
   describe('unknown option boundary', () => {
@@ -216,6 +235,28 @@ describe('createMainCommand', () => {
           expect((err as CommanderError).message).toContain("unknown option '--flag'")
         }
       } finally {
+        restoreTty()
+      }
+    })
+
+    it('rejects --unknown as an argument error without a TTY', async () => {
+      const program = createMainCommand()
+      program.exitOverride()
+      const restoreTty = mockTty(false, false)
+      const exitSpy = spyOn(process, 'exit').mockImplementation((() => {
+        throw new Error('process.exit')
+      }) as never)
+      try {
+        try {
+          await program.parseAsync(['node', 'cagent', '--unknown'])
+          expect.unreachable()
+        } catch (err) {
+          expect(err).toBeInstanceOf(CommanderError)
+          expect((err as CommanderError).message).toContain("unknown option '--unknown'")
+        }
+        expect(exitSpy).not.toHaveBeenCalled()
+      } finally {
+        exitSpy.mockRestore()
         restoreTty()
       }
     })

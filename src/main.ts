@@ -34,10 +34,6 @@ export function createMainCommand(): Command {
     )
     .allowUnknownOption()
     .action(async (positionalLevel: string | undefined, options: MainOptions) => {
-      if (!options.dryRun) {
-        assertTty('[level]', ['cagent run <level> -- "<prompt>"', 'cagent mux start <level>'])
-      }
-
       if (positionalLevel?.startsWith('--')) {
         program.error(`error: unknown option '${positionalLevel}'`)
       }
@@ -82,6 +78,11 @@ export function createMainCommand(): Command {
         config: agent,
         effort: resolved.effort,
       }
+
+      if (!options.dryRun) {
+        assertTty('[level]', ['cagent run <level> -- "<prompt>"', 'cagent mux start <level>'])
+      }
+
       const spec = adapter.buildStartCommand?.(ctx) ?? adapter.buildRunCommand(ctx)
 
       if (options.dryRun) {
