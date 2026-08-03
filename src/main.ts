@@ -3,6 +3,7 @@ import { getAgentAdapter } from './agents/registry.js'
 import { formatCommandSpec, runCommandSpec } from './command.js'
 import { getAgent, loadConfig } from './config.js'
 import { resolveModel } from './model.js'
+import { assertTty } from './tty.js'
 import { VERSION } from './version.js'
 
 export interface MainOptions {
@@ -33,6 +34,10 @@ export function createMainCommand(): Command {
     )
     .allowUnknownOption()
     .action(async (positionalLevel: string | undefined, options: MainOptions) => {
+      if (!options.dryRun) {
+        assertTty('[level]', ['cagent run <level> -- "<prompt>"', 'cagent mux start <level>'])
+      }
+
       if (positionalLevel?.startsWith('--')) {
         program.error(`error: unknown option '${positionalLevel}'`)
       }

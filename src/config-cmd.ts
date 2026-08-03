@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { Command } from 'commander'
 import { ConfigError, configPath, loadConfig } from './config.js'
+import { assertTty } from './tty.js'
 
 function resolveConfigPath(): string {
   return process.env.CAGENT_CONFIG ?? configPath()
@@ -127,6 +128,8 @@ export function createConfigCommand(): Command {
     .command('edit')
     .description('Open the config file in an editor')
     .action(() => {
+      assertTty('config edit', ['cagent config path'])
+
       const path = resolveConfigPath()
 
       try {
