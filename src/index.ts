@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createConfigCommand } from './config-cmd.js'
 import { createDoctorCommand } from './doctor.js'
+import { outputJsonFailure } from './json-output.js'
 import { createMainCommand } from './main.js'
 import { createModelsCommand } from './models.js'
 import { createMuxCommand } from './mux/index.js'
@@ -19,6 +20,13 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error(err instanceof Error ? err.message : String(err))
+  const separatorIndex = process.argv.indexOf('--')
+  const wrapperArgv = process.argv.slice(0, separatorIndex === -1 ? undefined : separatorIndex)
+  if (wrapperArgv.includes('--json')) {
+    const message = err instanceof Error ? err.message : String(err)
+    outputJsonFailure('error', 'INTERNAL_ERROR', message)
+  } else {
+    console.error(err instanceof Error ? err.message : String(err))
+  }
   process.exit(1)
 })

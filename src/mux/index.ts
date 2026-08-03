@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import { getAgentAdapter } from '../agents/registry.js'
 import type { CommandSpec } from '../agents/types.js'
+import { formatCommandSpecForShell } from '../command.js'
 import {
   type Config,
   configPath,
@@ -8,6 +9,7 @@ import {
   loadConfig,
   type MultiplexerAdapter,
 } from '../config.js'
+import { isJsonMode, type JsonWarning, outputJsonSuccess } from '../json-output.js'
 import { resolveModel } from '../model.js'
 import { executeHerdrRun, executeHerdrStart } from './herdr.js'
 import { executeTmuxRun, executeTmuxStart } from './tmux.js'
@@ -17,6 +19,7 @@ export interface MuxGlobalOptions {
   effort?: string
   adapter?: string
   dryRun?: boolean
+  json?: boolean
   agent?: string
 }
 
@@ -39,13 +42,21 @@ export function validateMuxAdapter(config: Config, adapterName: string): Multipl
   return adapter as MultiplexerAdapter
 }
 
-export function resolveMuxCommand(
+interface ResolvedMuxCommand {
+  adapterName: string
+  commandSpec: CommandSpec
+  agentId: string
+  resolved: ReturnType<typeof resolveModel>
+  warnings: JsonWarning[]
+}
+
+function resolveMuxCommandWithMetadata(
   config: Config,
   mode: 'start' | 'run',
   level: string,
   muxOpts: MuxGlobalOptions,
   extraArgs: string[],
-): { adapterName: string; commandSpec: CommandSpec } {
+): ResolvedMuxCommand {
   const adapterName = muxOpts.adapter ?? config.multiplexer.default
 
   validateMuxAdapter(config, adapterName)
@@ -61,8 +72,18 @@ export function resolveMuxCommand(
     envEffort: process.env.CAGENT_EFFORT,
   })
 
+  const warnings: JsonWarning[] = []
+  const json = muxOpts.dryRun === true && isJsonMode(muxOpts)
   for (const warning of resolved.warnings) {
-    console.warn(`Warning: ${warning}`)
+    if (json) {
+      warnings.push({
+        code: 'UNKNOWN_MODEL',
+        message: warning,
+        details: { model: resolved.modelId },
+      })
+    } else {
+      console.warn(`Warning: ${warning}`)
+    }
   }
 
   if (mode === 'start' && agentId === 'opencode-go' && resolved.effort) {
@@ -87,6 +108,23 @@ export function resolveMuxCommand(
       ? (codingAdapter.buildStartCommand?.(context) ?? codingAdapter.buildRunCommand(context))
       : codingAdapter.buildRunCommand(context)
 
+  return { adapterName, commandSpec, agentId, resolved, warnings }
+}
+
+export function resolveMuxCommand(
+  config: Config,
+  mode: 'start' | 'run',
+  level: string,
+  muxOpts: MuxGlobalOptions,
+  extraArgs: string[],
+): { adapterName: string; commandSpec: CommandSpec } {
+  const { adapterName, commandSpec } = resolveMuxCommandWithMetadata(
+    config,
+    mode,
+    level,
+    muxOpts,
+    extraArgs,
+  )
   return { adapterName, commandSpec }
 }
 
@@ -95,10 +133,54 @@ async function dispatchMux(mode: 'start' | 'run', level: string, command: Comman
   const config = loadConfig()
   const extraArgs = command.args.slice(1)
 
-  const { adapterName, commandSpec } = resolveMuxCommand(config, mode, level, muxOpts, extraArgs)
+  const { adapterName, commandSpec, agentId, resolved, warnings } = resolveMuxCommandWithMetadata(
+    config,
+    mode,
+    level,
+    muxOpts,
+    extraArgs,
+  )
 
   const cwd = process.cwd()
   const dryRun = muxOpts.dryRun === true
+
+  if (dryRun && isJsonMode(muxOpts)) {
+    const data: {
+      adapter: string
+      mode: 'start' | 'run'
+      agent: string
+      level: string
+      model: string
+      effort?: string
+      command: { executable: string; args: string[]; env: Record<string, string> }
+      pane_operations?: Array<Record<string, unknown>>
+    } = {
+      adapter: adapterName,
+      mode,
+      agent: agentId,
+      level: resolved.levelName ?? level,
+      model: resolved.modelId,
+      effort: resolved.effort,
+      command: {
+        executable: commandSpec.command,
+        args: commandSpec.args,
+        env: commandSpec.env ?? {},
+      },
+    }
+    if (adapterName === 'herdr') {
+      data.pane_operations = [
+        { step: 1, action: 'get_current_pane', description: 'get current pane ID' },
+        { step: 2, action: 'split_pane', direction: 'right', cwd },
+        {
+          step: 3,
+          action: 'run_in_pane',
+          command: formatCommandSpecForShell(commandSpec),
+        },
+      ]
+    }
+    outputJsonSuccess(`mux.${mode}.plan`, data, warnings)
+    return
+  }
 
   if (adapterName === 'herdr') {
     const ctx = {

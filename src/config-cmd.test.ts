@@ -111,6 +111,26 @@ describe('createConfigCommand', () => {
         logSpy.mockRestore()
       }
     })
+
+    it('outputs the current config path as JSON', async () => {
+      const program = createMainCommand()
+      program.addCommand(createConfigCommand())
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+      const customPath = join(tmpDir, 'custom-config.yaml')
+      process.env.CAGENT_CONFIG = customPath
+      try {
+        await program.parseAsync(['node', 'cagent', 'config', 'path', '--json'])
+        expect(logSpy).toHaveBeenCalledTimes(1)
+        const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+        expect(output.schema_version).toBe(1)
+        expect(output.ok).toBe(true)
+        expect(output.operation).toBe('config.path')
+        expect(output.data.path).toBe(customPath)
+        expect(output.data.source).toBe('CAGENT_CONFIG')
+      } finally {
+        logSpy.mockRestore()
+      }
+    })
   })
 
   describe('config init', () => {
@@ -170,6 +190,24 @@ describe('createConfigCommand', () => {
       try {
         await command.parseAsync(['node', 'cagent', 'init', '--dry-run'])
         expect(logSpy).toHaveBeenCalledWith(DEFAULT_CONFIG)
+        expect(existsSync(configPath())).toBe(false)
+      } finally {
+        logSpy.mockRestore()
+      }
+    })
+
+    it('outputs the default config as JSON without writing', async () => {
+      const program = createMainCommand()
+      program.addCommand(createConfigCommand())
+      const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+      try {
+        await program.parseAsync(['node', 'cagent', 'config', 'init', '--json'])
+        expect(logSpy).toHaveBeenCalledTimes(1)
+        const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+        expect(output.schema_version).toBe(1)
+        expect(output.ok).toBe(true)
+        expect(output.operation).toBe('config.init')
+        expect(output.data.config).toBe(DEFAULT_CONFIG)
         expect(existsSync(configPath())).toBe(false)
       } finally {
         logSpy.mockRestore()

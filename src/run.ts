@@ -1,7 +1,13 @@
 import { Command } from 'commander'
 import { getAgentAdapter } from './agents/registry.js'
 import { formatCommandSpec, runCommandSpec } from './command.js'
-import { getAgent, loadConfig } from './config.js'
+import { getAgent, loadConfig, resolveConfigPath } from './config.js'
+import {
+  isJsonMode,
+  type JsonWarning,
+  outputJsonFailure,
+  outputJsonSuccess,
+} from './json-output.js'
 import { resolveModel } from './model.js'
 
 export interface RunCommandOptions {
@@ -10,6 +16,7 @@ export interface RunCommandOptions {
   model?: string
   effort?: string
   dryRun?: boolean
+  json?: boolean
 }
 
 /**
@@ -43,6 +50,7 @@ export function parseRunArgv(argv: string[]): {
       if (
         arg === '--dry-run' ||
         arg === '-d' ||
+        arg === '--json' ||
         arg === '--help' ||
         arg === '-h' ||
         arg === '--version' ||
@@ -65,6 +73,19 @@ export function parseRunArgv(argv: string[]): {
   }
 }
 
+function parseRunCommandArgs(args: string[]): {
+  positionalLevel?: string
+  extraArgs: string[]
+} {
+  if (args[0] && !args[0].startsWith('-')) {
+    return {
+      positionalLevel: args[0],
+      extraArgs: args.slice(1),
+    }
+  }
+  return { extraArgs: args }
+}
+
 export function createRunCommand(): Command {
   const command = new Command('run')
 
@@ -74,7 +95,9 @@ export function createRunCommand(): Command {
     .allowUnknownOption()
     .action(async () => {
       const globals = command.optsWithGlobals() as RunCommandOptions
-      const { positionalLevel, extraArgs } = parseRunArgv(process.argv)
+      const { positionalLevel, extraArgs } = process.argv.includes('run')
+        ? parseRunArgv(process.argv)
+        : parseRunCommandArgs(command.args)
 
       const cliLevel = globals.level ?? positionalLevel
       const cliModel = globals.model
@@ -83,6 +106,19 @@ export function createRunCommand(): Command {
       const envLevel = process.env.CAGENT_LEVEL
       const envEffort = process.env.CAGENT_EFFORT
       const dryRun = globals.dryRun === true
+      const json = isJsonMode(globals)
+
+      if (json && !dryRun) {
+        outputJsonFailure(
+          'run.plan',
+          'USAGE_ERROR',
+          '--json requires --dry-run for this command',
+          { suggestion: 'Use --dry-run --json or pass --json after --' },
+          'Use `cagent run --dry-run [level] --json` for cagent control metadata.\n' +
+            'Pass `--json` after `--` when requesting JSON from the underlying agent CLI.',
+        )
+        process.exit(1)
+      }
 
       const config = loadConfig()
       const effectiveAgentId = globals.agent ?? process.env.CAGENT_AGENT ?? config.default_agent
@@ -98,8 +134,17 @@ export function createRunCommand(): Command {
         envEffort,
       })
 
+      const warnings: JsonWarning[] = []
       for (const warning of resolved.warnings) {
-        console.warn(`Warning: ${warning}`)
+        if (json) {
+          warnings.push({
+            code: 'UNKNOWN_MODEL',
+            message: warning,
+            details: { model: resolved.modelId },
+          })
+        } else {
+          console.warn(`Warning: ${warning}`)
+        }
       }
 
       const spec = adapter.buildRunCommand({
@@ -117,6 +162,26 @@ export function createRunCommand(): Command {
           resolved.levelName && agent.levels[resolved.levelName]
             ? resolved.levelName
             : config.default_level
+        if (json) {
+          outputJsonSuccess(
+            'run.plan',
+            {
+              interactive: false,
+              config_path: resolveConfigPath(),
+              agent: effectiveAgentId,
+              level: displayLevel,
+              model: resolved.modelId,
+              effort: resolved.effort,
+              command: {
+                executable: spec.command,
+                args: spec.args,
+                env: spec.env ?? {},
+              },
+            },
+            warnings,
+          )
+          return
+        }
         console.log(`# Resolved level: ${displayLevel}`)
         if (resolved.effort) {
           console.log(`# Resolved effort: ${resolved.effort}`)

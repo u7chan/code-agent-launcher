@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Config } from './config.js'
 import { runDoctor } from './doctor.js'
-import { formatConfiguredModels } from './models.js'
+import { createMainCommand } from './main.js'
+import { createModelsCommand, formatConfiguredModels } from './models.js'
 
 function makeMultiAgentConfig(): Config {
   return {
@@ -61,6 +62,64 @@ function makeMultiAgentConfig(): Config {
     },
   }
 }
+
+describe('models JSON output', () => {
+  it('outputs configured models as JSON without the table', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cagent-models-json-test-'))
+    const file = join(dir, 'config.yaml')
+    writeFileSync(
+      file,
+      `default_agent: codex
+default_level: mid
+agents:
+  codex:
+    bin: node
+    provider: codex
+    model_id_prefix: false
+    levels:
+      mid:
+        description: Normal
+        default_model: gpt-5
+        models: [gpt-5]
+multiplexer:
+  default: herdr
+  herdr: { enabled: true }
+`,
+    )
+    const originalConfig = process.env.CAGENT_CONFIG
+    process.env.CAGENT_CONFIG = file
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const command = createMainCommand()
+      command.addCommand(createModelsCommand())
+      await command.parseAsync(['node', 'cagent', 'models', '--refresh', '--json'])
+      expect(logSpy).toHaveBeenCalledTimes(1)
+      expect(warnSpy).not.toHaveBeenCalled()
+      const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+      expect(output.schema_version).toBe(1)
+      expect(output.ok).toBe(true)
+      expect(output.operation).toBe('models')
+      expect(output.data.default_agent).toBe('codex')
+      expect(output.data.agents[0]).toMatchObject({
+        id: 'codex',
+        provider: 'codex',
+        bin: 'node',
+        model_id_prefix: false,
+        default_level: null,
+      })
+      expect(output.warnings).toHaveLength(1)
+      expect(output.warnings[0].code).toBe('REFRESH_IGNORED')
+      expect(String(logSpy.mock.calls[0]?.[0])).not.toContain('Agent:')
+    } finally {
+      warnSpy.mockRestore()
+      logSpy.mockRestore()
+      if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
+      else process.env.CAGENT_CONFIG = originalConfig
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('formatConfiguredModels', () => {
   it('displays all agents when no filter', () => {
