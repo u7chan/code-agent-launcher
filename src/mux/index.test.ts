@@ -1,10 +1,16 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { formatCommandSpecForShell } from '../command.js'
 import { loadConfig } from '../config.js'
-import { MuxAdapterError, resolveMuxCommand, validateMuxAdapter } from './index.js'
+import { createMainCommand } from '../main.js'
+import {
+  createMuxCommand,
+  MuxAdapterError,
+  resolveMuxCommand,
+  validateMuxAdapter,
+} from './index.js'
 
 function writeTempConfig(content: string): { dir: string; file: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'cagent-mux-test-'))
@@ -170,6 +176,45 @@ describe('resolveMuxCommand', () => {
         "'codex' 'exec' '--model' 'gpt-5' '-c' 'model_reasoning_effort=\"high\"' 'hello'",
       )
     } finally {
+      cleanup()
+    }
+  })
+})
+
+describe('mux JSON output', () => {
+  it('outputs a herdr dry-run plan as JSON', async () => {
+    clearEffortEnv()
+    const { file, cleanup } = writeTempConfig(codexConfig)
+    const originalConfig = process.env.CAGENT_CONFIG
+    process.env.CAGENT_CONFIG = file
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const program = createMainCommand()
+      program.addCommand(createMuxCommand())
+      await program.parseAsync([
+        'node',
+        'cagent',
+        'mux',
+        'run',
+        'mid',
+        '--dry-run',
+        '--json',
+        '--',
+        'hello',
+      ])
+      expect(logSpy).toHaveBeenCalledTimes(1)
+      const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+      expect(output.schema_version).toBe(1)
+      expect(output.ok).toBe(true)
+      expect(output.operation).toBe('mux.run.plan')
+      expect(output.data.adapter).toBe('herdr')
+      expect(output.data.mode).toBe('run')
+      expect(output.data.pane_operations).toHaveLength(3)
+      expect(String(logSpy.mock.calls[0]?.[0])).not.toContain('# Herdr dry-run')
+    } finally {
+      logSpy.mockRestore()
+      if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
+      else process.env.CAGENT_CONFIG = originalConfig
       cleanup()
     }
   })
