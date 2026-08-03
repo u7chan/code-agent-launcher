@@ -1,9 +1,10 @@
 import { describe, expect, it, spyOn } from 'bun:test'
-import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CommanderError } from 'commander'
 import { createMainCommand } from './main.js'
+import { createRunCommand } from './run.js'
 import { VERSION } from './version.js'
 
 function mockTty(stdinIsTTY: boolean, stdoutIsTTY: boolean): () => void {
@@ -113,6 +114,111 @@ describe('createMainCommand', () => {
       } else {
         process.env.CAGENT_CONFIG = originalConfig
       }
+      rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('outputs a bare cagent dry-run plan as JSON', async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'cagent-main-json-test-'))
+    const config = join(tmpDir, 'config.yaml')
+    writeTestConfig(config, 'node')
+
+    const originalConfig = process.env.CAGENT_CONFIG
+    process.env.CAGENT_CONFIG = config
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const program = createMainCommand()
+      await program.parseAsync(['node', 'cagent', 'mid', '--dry-run', '--json'])
+      expect(logSpy).toHaveBeenCalledTimes(1)
+      const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+      expect(output.schema_version).toBe(1)
+      expect(output.ok).toBe(true)
+      expect(output.operation).toBe('run.plan')
+      expect(output.data.interactive).toBe(true)
+      expect(output.data.agent).toBe('codex')
+      expect(output.data.level).toBe('mid')
+      expect(output.data.command.executable).toBe('node')
+      expect(String(logSpy.mock.calls[0]?.[0])).not.toContain('# Resolved level')
+    } finally {
+      logSpy.mockRestore()
+      if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
+      else process.env.CAGENT_CONFIG = originalConfig
+      rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects bare cagent JSON without dry-run', async () => {
+    const errorSpy = spyOn(console, 'error').mockImplementation(() => {})
+    const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit')
+    })
+    try {
+      const program = createMainCommand()
+      await expect(program.parseAsync(['node', 'cagent', 'mid', '--json'])).rejects.toThrow(
+        'process.exit',
+      )
+      expect(errorSpy.mock.calls[0]?.[0]).toContain(
+        'cagent: --json requires --dry-run for [level] command',
+      )
+      expect(exitSpy).toHaveBeenCalledWith(1)
+    } finally {
+      exitSpy.mockRestore()
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('passes --json after -- to the child CLI', async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'cagent-main-boundary-test-'))
+    const config = join(tmpDir, 'config.yaml')
+    const marker = join(tmpDir, 'arguments')
+    const agent = join(tmpDir, 'agent.sh')
+    writeFileSync(agent, `#!/bin/sh\nprintf "%s" "$*" > ${marker}`, 'utf-8')
+    chmodSync(agent, 0o755)
+    writeTestConfig(config, agent)
+
+    const originalConfig = process.env.CAGENT_CONFIG
+    process.env.CAGENT_CONFIG = config
+    try {
+      const program = createMainCommand()
+      program.addCommand(createRunCommand())
+      await program.parseAsync(['node', 'cagent', 'run', 'mid', '--', '--json', 'hello'])
+      expect(readFileSync(marker, 'utf-8')).toContain('--json')
+    } finally {
+      if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
+      else process.env.CAGENT_CONFIG = originalConfig
+      rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('consumes --json before -- for the cagent control plane', async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'cagent-main-boundary-json-test-'))
+    const config = join(tmpDir, 'config.yaml')
+    writeTestConfig(config, 'node')
+
+    const originalConfig = process.env.CAGENT_CONFIG
+    process.env.CAGENT_CONFIG = config
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const program = createMainCommand()
+      program.addCommand(createRunCommand())
+      await program.parseAsync([
+        'node',
+        'cagent',
+        'run',
+        '--dry-run',
+        'mid',
+        '--json',
+        '--',
+        'hello',
+      ])
+      expect(logSpy).toHaveBeenCalledTimes(1)
+      const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+      expect(output.ok).toBe(true)
+      expect(output.data.command.args).not.toContain('--json')
+    } finally {
+      logSpy.mockRestore()
+      if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
+      else process.env.CAGENT_CONFIG = originalConfig
       rmSync(tmpDir, { recursive: true, force: true })
     }
   })

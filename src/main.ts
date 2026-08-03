@@ -1,7 +1,8 @@
 import { Command, Option } from 'commander'
 import { getAgentAdapter } from './agents/registry.js'
 import { formatCommandSpec, runCommandSpec } from './command.js'
-import { getAgent, loadConfig } from './config.js'
+import { configPath, getAgent, loadConfig } from './config.js'
+import { isJsonMode, outputJsonSuccess } from './json-output.js'
 import { resolveModel } from './model.js'
 import { assertTty } from './tty.js'
 import { VERSION } from './version.js'
@@ -11,6 +12,7 @@ export interface MainOptions {
   model?: string
   effort?: string
   dryRun?: boolean
+  json?: boolean
   adapter?: string
   agent?: string
 }
@@ -29,6 +31,7 @@ export function createMainCommand(): Command {
     .option('-e, --effort <effort>', 'explicit reasoning effort')
     .option('-a, --agent <agent>', 'coding agent id')
     .option('-d, --dry-run', 'print the resolved command without executing')
+    .option('--json', 'output control information as JSON')
     .addOption(
       new Option('--adapter <adapter>', 'multiplexer adapter to use').default(undefined).hideHelp(),
     )
@@ -41,6 +44,16 @@ export function createMainCommand(): Command {
       if (program.opts().v) {
         console.log(VERSION)
         process.exit(0)
+      }
+
+      const json = isJsonMode(options)
+      if (json && !options.dryRun) {
+        console.error(
+          'cagent: --json requires --dry-run for [level] command\n' +
+            'Use `cagent run --dry-run [level] --json` for cagent control metadata.\n' +
+            'Pass `--json` after `--` when requesting JSON from the underlying agent CLI.',
+        )
+        process.exit(1)
       }
 
       const cliLevel = options.level ?? positionalLevel
@@ -86,6 +99,23 @@ export function createMainCommand(): Command {
       const spec = adapter.buildStartCommand?.(ctx) ?? adapter.buildRunCommand(ctx)
 
       if (options.dryRun) {
+        const level = resolved.levelName ?? config.default_level
+        if (json) {
+          outputJsonSuccess('run.plan', {
+            interactive: true,
+            config_path: configPath(),
+            agent: agentId,
+            level,
+            model: resolved.modelId,
+            effort: resolved.effort,
+            command: {
+              executable: spec.command,
+              args: spec.args,
+              env: spec.env ?? {},
+            },
+          })
+          return
+        }
         console.log(`# Resolved level: ${resolved.levelName ?? config.default_level}`)
         if (resolved.effort) {
           console.log(`# Resolved effort: ${resolved.effort}`)
