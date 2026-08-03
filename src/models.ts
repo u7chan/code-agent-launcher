@@ -60,7 +60,11 @@ export function createModelsCommand(): Command {
     )
     .action(() => {
       const config = loadConfig()
-      const globals = command.optsWithGlobals() as { agent?: string; refresh?: boolean }
+      const globals = command.optsWithGlobals() as {
+        agent?: string
+        refresh?: boolean
+        json?: boolean
+      }
       const explicitAgent = globals.agent
       if (explicitAgent) {
         if (!config.agents[explicitAgent]) {
