@@ -123,6 +123,8 @@ cagent mux run mid -- "このIssueを調査して"
 cagent doctor
 ```
 
+`cagent mux start/run` の成功は、作成した pane への agent command の dispatch 成功を意味します。coding-agent task の完了は `cagent` では観測せず、結果の `task_completed` は常に `false` です。
+
 ## エージェント向けルール
 
 設定ファイルは `~/.config/cagent/config.yaml` です。環境変数には `CAGENT_CONFIG` / `CAGENT_AGENT` / `CAGENT_MODEL` / `CAGENT_LEVEL` / `CAGENT_EFFORT` を使用します。
