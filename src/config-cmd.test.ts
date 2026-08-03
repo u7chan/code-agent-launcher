@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { configPath } from './config.js'
@@ -23,6 +31,33 @@ multiplexer:
   herdr:
     enabled: true
 `
+
+function mockTty(stdinIsTTY: boolean, stdoutIsTTY: boolean): () => void {
+  const stdinDescriptor = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
+  const stdoutDescriptor = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY')
+
+  Object.defineProperty(process.stdin, 'isTTY', {
+    configurable: true,
+    value: stdinIsTTY,
+  })
+  Object.defineProperty(process.stdout, 'isTTY', {
+    configurable: true,
+    value: stdoutIsTTY,
+  })
+
+  return () => {
+    if (stdinDescriptor) {
+      Object.defineProperty(process.stdin, 'isTTY', stdinDescriptor)
+    } else {
+      Reflect.deleteProperty(process.stdin, 'isTTY')
+    }
+    if (stdoutDescriptor) {
+      Object.defineProperty(process.stdout, 'isTTY', stdoutDescriptor)
+    } else {
+      Reflect.deleteProperty(process.stdout, 'isTTY')
+    }
+  }
+}
 
 describe('createConfigCommand', () => {
   let tmpDir: string
@@ -211,7 +246,57 @@ describe('createConfigCommand', () => {
   })
 
   describe('config edit', () => {
+    it('fails without a TTY before starting the editor', async () => {
+      const path = configPath()
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, validFixture, 'utf-8')
+      const marker = join(tmpDir, 'editor-started')
+      const editor = join(tmpDir, 'editor.sh')
+      writeFileSync(editor, `#!/bin/sh\nprintf started > '${marker}'\n`, 'utf-8')
+      chmodSync(editor, 0o755)
+      process.env.EDITOR = editor
+      delete process.env.VISUAL
+
+      const restoreTty = mockTty(false, true)
+      const errorSpy = spyOn(console, 'error').mockImplementation(() => {})
+      const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit')
+      })
+      try {
+        const command = createConfigCommand()
+        await expect(command.parseAsync(['node', 'cagent', 'edit'])).rejects.toThrow('process.exit')
+        expect(existsSync(marker)).toBe(false)
+        expect(String(errorSpy.mock.calls[0]?.[0])).toContain('requires a TTY')
+      } finally {
+        exitSpy.mockRestore()
+        errorSpy.mockRestore()
+        restoreTty()
+      }
+    })
+
+    it('starts the editor with a TTY', async () => {
+      const path = configPath()
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, validFixture, 'utf-8')
+      const marker = join(tmpDir, 'editor-started')
+      const editor = join(tmpDir, 'editor.sh')
+      writeFileSync(editor, `#!/bin/sh\nprintf started > '${marker}'\n`, 'utf-8')
+      chmodSync(editor, 0o755)
+      process.env.EDITOR = editor
+      delete process.env.VISUAL
+
+      const restoreTty = mockTty(true, true)
+      try {
+        const command = createConfigCommand()
+        await command.parseAsync(['node', 'cagent', 'edit'])
+        expect(existsSync(marker)).toBe(true)
+      } finally {
+        restoreTty()
+      }
+    })
+
     it('errors when config file does not exist', async () => {
+      const restoreTty = mockTty(true, true)
       const command = createConfigCommand()
       const errorSpy = spyOn(console, 'error').mockImplementation(() => {})
       const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
@@ -223,6 +308,7 @@ describe('createConfigCommand', () => {
       } finally {
         errorSpy.mockRestore()
         exitSpy.mockRestore()
+        restoreTty()
       }
     })
 
@@ -233,6 +319,7 @@ describe('createConfigCommand', () => {
       process.env.EDITOR = 'false'
       delete process.env.VISUAL
       const command = createConfigCommand()
+      const restoreTty = mockTty(true, true)
       const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
         throw new Error('process.exit')
       })
@@ -240,6 +327,7 @@ describe('createConfigCommand', () => {
         await expect(command.parseAsync(['node', 'cagent', 'edit'])).rejects.toThrow('process.exit')
       } finally {
         exitSpy.mockRestore()
+        restoreTty()
       }
     })
 
@@ -250,6 +338,7 @@ describe('createConfigCommand', () => {
       process.env.EDITOR = 'false'
       delete process.env.VISUAL
       const command = createConfigCommand()
+      const restoreTty = mockTty(true, true)
       const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
         throw new Error('process.exit')
       })
@@ -257,6 +346,7 @@ describe('createConfigCommand', () => {
         await expect(command.parseAsync(['node', 'cagent', 'edit'])).rejects.toThrow('process.exit')
       } finally {
         exitSpy.mockRestore()
+        restoreTty()
       }
     })
   })

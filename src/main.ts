@@ -3,6 +3,7 @@ import { getAgentAdapter } from './agents/registry.js'
 import { formatCommandSpec, runCommandSpec } from './command.js'
 import { getAgent, loadConfig } from './config.js'
 import { resolveModel } from './model.js'
+import { assertTty } from './tty.js'
 import { VERSION } from './version.js'
 
 export interface MainOptions {
@@ -77,6 +78,11 @@ export function createMainCommand(): Command {
         config: agent,
         effort: resolved.effort,
       }
+
+      if (!options.dryRun) {
+        assertTty('[level]', ['cagent run <level> -- "<prompt>"', 'cagent mux start <level>'])
+      }
+
       const spec = adapter.buildStartCommand?.(ctx) ?? adapter.buildRunCommand(ctx)
 
       if (options.dryRun) {
