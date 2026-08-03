@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { runDoctor } from './doctor.js'
+import { type CheckResult, printResults, runDoctor } from './doctor.js'
 
 function writeTempConfig(content: string): { file: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'cagent-doctor-test-'))
@@ -16,6 +16,31 @@ function writeTempConfig(content: string): { file: string; cleanup: () => void }
     },
   }
 }
+
+describe('doctor JSON output', () => {
+  it('outputs a versioned summary and checks without human formatting', () => {
+    const results: CheckResult[] = [
+      { status: 'OK', message: 'config file exists', id: 'config.exists' },
+      { status: 'WARN', message: 'binary unavailable', id: 'agent.bin', details: { path: null } },
+      { status: 'ERROR', message: 'invalid config', id: 'config.valid' },
+      { status: 'SKIP', message: 'not applicable', id: 'agent.models.list' },
+    ]
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      printResults(results, true)
+      expect(logSpy).toHaveBeenCalledTimes(1)
+      const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+      expect(output.schema_version).toBe(1)
+      expect(output.ok).toBe(true)
+      expect(output.operation).toBe('doctor')
+      expect(output.data.summary).toEqual({ ok: 1, warn: 1, error: 1, skip: 1 })
+      expect(output.data.checks[0].id).toBe('config.exists')
+      expect(String(logSpy.mock.calls[0]?.[0])).not.toContain('[OK]')
+    } finally {
+      logSpy.mockRestore()
+    }
+  })
+})
 
 describe('doctor effort reporting', () => {
   it('reports opencode-go effort as effective with run --variant', () => {
@@ -247,6 +272,8 @@ multiplexer:
       expect(results[1]).toEqual({
         status: 'ERROR',
         message: 'config validation failed: agent "opencode-go".provider must be a string',
+        id: 'config.valid',
+        details: { path: file },
       })
     } finally {
       cleanup()
