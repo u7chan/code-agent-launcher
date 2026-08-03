@@ -35,15 +35,33 @@ export interface Config {
   multiplexer: MultiplexerConfig
 }
 
+export type ConfigPathSource = 'CAGENT_CONFIG' | 'XDG_CONFIG_HOME' | 'HOME'
+
+export interface ResolvedConfigPath {
+  path: string
+  source: ConfigPathSource
+}
+
 function getConfigHome(): string {
-  return process.env.XDG_CONFIG_HOME || join(homedir(), '.config')
+  return process.env.XDG_CONFIG_HOME || join(process.env.HOME || homedir(), '.config')
 }
 export function configPath(): string {
   return join(getConfigHome(), 'cagent', 'config.yaml')
 }
+
+export function resolveConfigPathWithSource(): ResolvedConfigPath {
+  if (process.env.CAGENT_CONFIG) {
+    return { path: process.env.CAGENT_CONFIG, source: 'CAGENT_CONFIG' }
+  }
+
+  return {
+    path: configPath(),
+    source: process.env.XDG_CONFIG_HOME ? 'XDG_CONFIG_HOME' : 'HOME',
+  }
+}
+
 export function resolveConfigPath(): string {
-  if (process.env.CAGENT_CONFIG) return process.env.CAGENT_CONFIG
-  return configPath()
+  return resolveConfigPathWithSource().path
 }
 export class ConfigError extends Error {
   constructor(message: string) {
