@@ -28,10 +28,28 @@ export interface MultiplexerConfig {
   [adapter: string]: string | MultiplexerAdapter | undefined
 }
 
+export interface LaunchProfile {
+  agent: string
+  model: string
+  effort?: string
+}
+
+export interface ResolvedProfile {
+  name: string
+  source: 'cli' | 'env' | 'default'
+  agent: string
+  model: string
+  effort?: string
+  modelSource: 'cli' | 'env' | 'profile'
+  effortSource?: 'cli' | 'env' | 'profile'
+}
+
 export interface Config {
   default_agent: string
   default_level: string
+  default_profile?: string
   agents: Record<string, AgentConfig>
+  profiles?: Record<string, LaunchProfile>
   multiplexer: MultiplexerConfig
 }
 
@@ -82,20 +100,16 @@ function requiredNonEmptyString(v: unknown, name: string): string {
   if (!v) throw new ConfigError(`${name} must not be empty`)
   return v
 }
-function parseEffort(name: string, level: Record<string, unknown>): string | undefined {
-  if (!('effort' in level) || level.effort === undefined) return undefined
-  if (
-    level.effort === null ||
-    typeof level.effort === 'number' ||
-    typeof level.effort === 'boolean'
-  ) {
-    throw new ConfigError(`level "${name}".effort must be a string`)
+function parseEffort(kind: string, name: string, effort: unknown): string | undefined {
+  if (effort === undefined) return undefined
+  if (effort === null || typeof effort === 'number' || typeof effort === 'boolean') {
+    throw new ConfigError(`${kind} "${name}".effort must be a string`)
   }
-  if (typeof level.effort === 'string') {
-    if (level.effort === '') throw new ConfigError(`level "${name}".effort must not be empty`)
-    return level.effort
+  if (typeof effort === 'string') {
+    if (effort === '') throw new ConfigError(`${kind} "${name}".effort must not be empty`)
+    return effort
   }
-  throw new ConfigError(`level "${name}".effort must be a string`)
+  throw new ConfigError(`${kind} "${name}".effort must be a string`)
 }
 
 function levels(raw: unknown): Record<string, LevelConfig> {
@@ -108,7 +122,26 @@ function levels(raw: unknown): Record<string, LevelConfig> {
       description: string(level.description, `level "${name}".description must be a string`),
       default_model: string(level.default_model, `level "${name}".default_model must be a string`),
       models: level.models as string[],
-      effort: parseEffort(name, level),
+      effort: parseEffort('level', name, level.effort),
+    }
+  }
+  return out
+}
+function parseProfiles(
+  raw: unknown,
+  agents: Record<string, AgentConfig>,
+): Record<string, LaunchProfile> {
+  const out: Record<string, LaunchProfile> = {}
+  for (const [name, value] of Object.entries(record(raw, 'profiles must be an object'))) {
+    if (!name) throw new ConfigError('profile name must not be empty')
+    const profile = record(value, `profile "${name}" must be an object`)
+    const agent = requiredNonEmptyString(profile.agent, `profile "${name}".agent`)
+    if (!Object.hasOwn(agents, agent))
+      throw new ConfigError(`profile "${name}".agent "${agent}" is not defined in agents`)
+    out[name] = {
+      agent,
+      model: requiredNonEmptyString(profile.model, `profile "${name}".model`),
+      effort: parseEffort('profile', name, profile.effort),
     }
   }
   return out
@@ -153,7 +186,7 @@ function normalize(root: Record<string, unknown>): Config {
   }
 
   const defaultAgent = string(root.default_agent, 'default_agent must be a string')
-  const active = agents[defaultAgent]
+  const active = Object.hasOwn(agents, defaultAgent) ? agents[defaultAgent] : undefined
   if (!active) throw new ConfigError(`default_agent "${defaultAgent}" is not defined in agents`)
 
   const defaultLevel = string(root.default_level, 'default_level must be a string')
@@ -162,10 +195,21 @@ function normalize(root: Record<string, unknown>): Config {
       `default_level "${defaultLevel}" is not defined in levels for agent "${defaultAgent}"`,
     )
 
+  const parsedProfiles =
+    root.profiles !== undefined ? parseProfiles(root.profiles, agents) : undefined
+  const defaultProfile =
+    root.default_profile !== undefined
+      ? requiredNonEmptyString(root.default_profile, 'default_profile')
+      : undefined
+  if (defaultProfile !== undefined && !Object.hasOwn(parsedProfiles ?? {}, defaultProfile))
+    throw new ConfigError(`default_profile "${defaultProfile}" is not defined in profiles`)
+
   return {
     default_agent: defaultAgent,
     default_level: defaultLevel,
+    default_profile: defaultProfile,
     agents,
+    profiles: parsedProfiles,
     multiplexer,
   }
 }
@@ -189,7 +233,7 @@ export function loadConfig(path?: string): Config {
   }
 }
 export function getAgent(config: Config, id: string): AgentConfig {
-  const agent = config.agents[id]
+  const agent = Object.hasOwn(config.agents, id) ? config.agents[id] : undefined
   if (agent) return agent
   throw new ConfigError(
     `unknown agent: ${id}\n\nAvailable agents:\n${Object.keys(config.agents)
