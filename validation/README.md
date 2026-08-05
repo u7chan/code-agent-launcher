@@ -21,14 +21,17 @@ bun run validate smoke --profile core --live
 ルーティングmatrixは `validation/config/matrix.yaml` で管理します。Profile名は任意の
 文字列ですが、検証用設定ではagentごとに次の名前を使います。
 
-| Agent | Launch Profile | Expected model |
-| --- | --- | --- |
-| codex | codex-fast | gpt-5.6-luna |
-| codex | codex-balanced | gpt-5.6-terra |
-| codex | codex-frontier | gpt-5.6-sol |
-| opencode-go | opencode-fast | opencode-go/deepseek-v4-flash |
-| opencode-go | opencode-balanced | opencode-go/deepseek-v4-pro |
-| opencode-go | opencode-frontier | opencode-go/kimi-k2.7-code |
+| Agent | Launch Profile |
+| --- | --- |
+| codex | codex-fast |
+| codex | codex-balanced |
+| codex | codex-frontier |
+| opencode-go | opencode-fast |
+| opencode-go | opencode-balanced |
+| opencode-go | opencode-frontier |
+
+期待モデルは `validation/config/matrix.yaml` の各Launch Profileに対応する
+`expected_model`を正本として参照してください。
 
 レポートは既定で `validation/.artifacts/` に生成され、Git管理されません。プロバイダー
 応答が示す実モデルIDは取得しないため、レポートでは
@@ -60,15 +63,16 @@ bun run validate smoke --profile extended \
   --live --confirm-herdr-side-effects
 ```
 
-attestationの例:
+attestationの例。プレースホルダーは、対象Launch Profileに対応する
+`validation/config/matrix.yaml` の `expected_model` の値に置き換えてください。
 
 ```yaml
 manual_attestation:
   method: herdr-pane
   verified_by: <GitHubユーザー名>
   verified_at: 2026-07-11T00:00:00+09:00
-  expected_model: opencode-go/deepseek-v4-pro
-  observed_cli_model: opencode-go/deepseek-v4-pro
+  expected_model: <matrix.yamlのexpected_modelと一致するモデルID>
+  observed_cli_model: <matrix.yamlのexpected_modelと一致するモデルID>
   status: pass
 ```
 
@@ -99,7 +103,7 @@ routing smokeとは別に、候補model評価用の `low` / `mid` / `high` 3つ�
 予定表示と定型成果物の生成だけで、modelは呼び出しません。
 
 ```bash
-bun run validate evaluate --candidate codex/gpt-5.6-sol
+bun run validate evaluate --candidate codex/<candidate-model-id>
 ```
 
 表示される候補・baseline・fixture・各3試行・予定呼び出し数を確認したうえで、外部CLIを
@@ -107,7 +111,7 @@ bun run validate evaluate --candidate codex/gpt-5.6-sol
 
 ```bash
 CAGENT_EVALUATE_COMMAND=/absolute/path/to/evaluator \
-  bun run validate evaluate --candidate codex/gpt-5.6-sol --execute --confirm-live
+  bun run validate evaluate --candidate codex/<candidate-model-id> --execute --confirm-live
 ```
 
 評価CLIは `--model <model> --case <fixture>` を受け取り、標準出力へ回答を返します。
