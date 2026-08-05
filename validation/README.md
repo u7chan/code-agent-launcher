@@ -67,8 +67,8 @@ manual_attestation:
   method: herdr-pane
   verified_by: <GitHubユーザー名>
   verified_at: 2026-07-11T00:00:00+09:00
-  expected_model: gpt-5.6-terra
-  observed_cli_model: gpt-5.6-terra
+  expected_model: opencode-go/deepseek-v4-pro
+  observed_cli_model: opencode-go/deepseek-v4-pro
   status: pass
 ```
 
@@ -95,7 +95,7 @@ extendedの`scores.json`は`automatic_routing`、`manual_attestation`、`herdr_l
 
 ## 候補modelの最小品質評価
 
-routing smokeとは別に、候補model評価用の3つの固定fixtureを実行できます。通常実行は
+routing smokeとは別に、候補model評価用の `low` / `mid` / `high` 3つの固定fixtureを実行できます。通常実行は
 予定表示と定型成果物の生成だけで、modelは呼び出しません。
 
 ```bash

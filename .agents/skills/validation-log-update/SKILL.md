@@ -36,7 +36,7 @@ GitHub Wiki の `Validation-Log.md` に追記する。
 
 `report.md` から以下を抽出:
 - `Tested commit`
-- 結果テーブル（Agent, Launch Profile, Expected model, Routing, Live run の列）
+- 結果テーブル（Agent, Profile, Expected model, Routing, Live run の列）
 
 ### 2. Wiki リポジトリの準備
 
@@ -63,7 +63,7 @@ clone に失敗した場合は、Wiki が未初期化のため、ユーザーに
 - **モード**: {mode}
 - **アーティファクト**: `validation/.artifacts/{runId}/`
 
-| Agent | Launch Profile | Expected Model | Dry-run | Live |
+| Agent | Profile | Expected Model | Dry-run | Live |
 |---|---|---|---|---|
 | {agent} | {launch-profile-1} | {model} | pass | pass |
 | {agent} | {launch-profile-2} | {model} | pass | pass |
