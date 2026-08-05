@@ -192,7 +192,7 @@ jobs:
           CAGENT_CONFIG="$config_path" "$binary" --help | grep -F 'Usage: cagent'
           CAGENT_CONFIG="$config_path" "$binary" config init
           test -f "$config_path"
-          CAGENT_CONFIG="$config_path" "$binary" --dry-run | grep -F '# Resolved level: mid'
+          CAGENT_CONFIG="$config_path" "$binary" --dry-run | grep -F '# Resolved profile: balanced'
           test ! -e "$poisoned_config"
           test ! -e "$preload_marker"
 

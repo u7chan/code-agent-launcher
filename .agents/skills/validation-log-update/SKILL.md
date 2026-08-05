@@ -36,7 +36,7 @@ GitHub Wiki の `Validation-Log.md` に追記する。
 
 `report.md` から以下を抽出:
 - `Tested commit`
-- 結果テーブル（Agent, Level, Expected model, Routing, Live run の列）
+- 結果テーブル（Agent, Launch Profile, Expected model, Routing, Live run の列）
 
 ### 2. Wiki リポジトリの準備
 
@@ -63,11 +63,11 @@ clone に失敗した場合は、Wiki が未初期化のため、ユーザーに
 - **モード**: {mode}
 - **アーティファクト**: `validation/.artifacts/{runId}/`
 
-| Agent | Level | Expected Model | Dry-run | Live |
+| Agent | Launch Profile | Expected Model | Dry-run | Live |
 |---|---|---|---|---|
-| {agent} | low | {model} | pass | pass |
-| {agent} | mid | {model} | pass | pass |
-| {agent} | high | {model} | pass | pass |
+| {agent} | {launch-profile-1} | {model} | pass | pass |
+| {agent} | {launch-profile-2} | {model} | pass | pass |
+| {agent} | {launch-profile-3} | {model} | pass | pass |
 ```
 
 evaluate の場合は report.md の内容に応じてテーブル列を調整する。

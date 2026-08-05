@@ -1,4 +1,4 @@
 id: codex-model-routing
 agent: codex
-levels: [low, mid, high]
+profiles: [codex-fast, codex-balanced, codex-frontier]
 prompt: prompt.md
