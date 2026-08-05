@@ -3,10 +3,9 @@ import { getAgentAdapter } from './agents/registry.js'
 import { formatCommandSpec, runCommandSpec } from './command.js'
 import { getAgent, loadConfig, type ResolvedProfile, resolveConfigPath } from './config.js'
 import { isJsonMode, outputJsonFailure, outputJsonSuccess } from './json-output.js'
-import { resolveProfile } from './profile.js'
+import { ProfileError, resolveProfile } from './profile.js'
 
 export interface RunCommandOptions {
-  agent?: string
   model?: string
   effort?: string
   dryRun?: boolean
@@ -85,7 +84,6 @@ export function createRunCommand(): Command {
 
   command
     .description('Run a coding agent non-interactively with a prompt')
-    .option('-a, --agent <agent>', 'coding agent id')
     .allowUnknownOption()
     .action(async () => {
       const globals = command.optsWithGlobals() as RunCommandOptions
@@ -109,14 +107,23 @@ export function createRunCommand(): Command {
       }
 
       const config = loadConfig()
-      const resolved: ResolvedProfile = resolveProfile(config, {
-        cliProfile: positionalProfile,
-        envProfile: process.env.CAGENT_PROFILE,
-        cliModel: globals.model,
-        envModel: process.env.CAGENT_MODEL,
-        cliEffort: globals.effort,
-        envEffort: process.env.CAGENT_EFFORT,
-      })
+      let resolved: ResolvedProfile
+      try {
+        resolved = resolveProfile(config, {
+          cliProfile: positionalProfile,
+          envProfile: process.env.CAGENT_PROFILE,
+          cliModel: globals.model,
+          envModel: process.env.CAGENT_MODEL,
+          cliEffort: globals.effort,
+          envEffort: process.env.CAGENT_EFFORT,
+        })
+      } catch (error) {
+        if (error instanceof ProfileError) {
+          console.error(error.message)
+          process.exit(1)
+        }
+        throw error
+      }
       const effectiveAgentId = resolved.agent
       const agent = getAgent(config, effectiveAgentId)
       const adapter = getAgentAdapter(effectiveAgentId)

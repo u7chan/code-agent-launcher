@@ -13,7 +13,6 @@ export interface MainOptions {
   dryRun?: boolean
   json?: boolean
   adapter?: string
-  agent?: string
 }
 
 export function createMainCommand(): Command {
@@ -27,7 +26,6 @@ export function createMainCommand(): Command {
     .argument('[profile]', 'launch profile')
     .option('-m, --model <model>', 'explicit model id')
     .option('-e, --effort <effort>', 'explicit reasoning effort')
-    .option('-a, --agent <agent>', 'coding agent id')
     .option('-d, --dry-run', 'print the resolved command without executing')
     .option('--json', 'output control information as JSON')
     .addOption(

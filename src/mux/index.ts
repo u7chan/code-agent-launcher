@@ -9,13 +9,8 @@ import {
   type ResolvedProfile,
   resolveConfigPath,
 } from '../config.js'
-import {
-  isJsonMode,
-  type JsonWarning,
-  outputJsonFailure,
-  outputJsonSuccess,
-} from '../json-output.js'
-import { resolveProfile } from '../profile.js'
+import { isJsonMode, outputJsonFailure, outputJsonSuccess } from '../json-output.js'
+import { ProfileError, resolveProfile } from '../profile.js'
 import { executeHerdrRun, executeHerdrStart, type HerdrContext } from './herdr.js'
 import { executeTmuxRun, executeTmuxStart } from './tmux.js'
 import type { MuxExecutionPlanResult, MuxExecutionResult } from './types.js'
@@ -26,7 +21,6 @@ export interface MuxGlobalOptions {
   adapter?: string
   dryRun?: boolean
   json?: boolean
-  agent?: string
 }
 
 export class MuxAdapterError extends Error {
@@ -66,7 +60,6 @@ interface ResolvedMuxCommand {
   commandSpec: CommandSpec
   agentId: string
   resolved: ResolvedProfile
-  warnings: JsonWarning[]
 }
 
 function resolveMuxCommandWithMetadata(
@@ -80,17 +73,25 @@ function resolveMuxCommandWithMetadata(
 
   validateMuxAdapter(config, adapterName)
 
-  const resolved = resolveProfile(config, {
-    cliProfile: profile,
-    cliModel: muxOpts.model,
-    cliEffort: muxOpts.effort,
-    envProfile: process.env.CAGENT_PROFILE,
-    envModel: process.env.CAGENT_MODEL,
-    envEffort: process.env.CAGENT_EFFORT,
-  })
+  let resolved: ResolvedProfile
+  try {
+    resolved = resolveProfile(config, {
+      cliProfile: profile,
+      cliModel: muxOpts.model,
+      cliEffort: muxOpts.effort,
+      envProfile: process.env.CAGENT_PROFILE,
+      envModel: process.env.CAGENT_MODEL,
+      envEffort: process.env.CAGENT_EFFORT,
+    })
+  } catch (error) {
+    if (error instanceof ProfileError) {
+      console.error(error.message)
+      process.exit(1)
+    }
+    throw error
+  }
 
   const agentId = resolved.agent
-  const warnings: JsonWarning[] = []
 
   if (mode === 'start' && agentId === 'opencode-go' && resolved.effort) {
     throw new MuxAdapterError(
@@ -114,7 +115,7 @@ function resolveMuxCommandWithMetadata(
       ? (codingAdapter.buildStartCommand?.(context) ?? codingAdapter.buildRunCommand(context))
       : codingAdapter.buildRunCommand(context)
 
-  return { adapterName, commandSpec, agentId, resolved, warnings }
+  return { adapterName, commandSpec, agentId, resolved }
 }
 
 export function resolveMuxCommand(
@@ -143,7 +144,7 @@ async function dispatchMux(
   const config = loadConfig()
   const extraArgs = command.args.slice(1)
 
-  const { adapterName, commandSpec, agentId, resolved, warnings } = resolveMuxCommandWithMetadata(
+  const { adapterName, commandSpec, agentId, resolved } = resolveMuxCommandWithMetadata(
     config,
     mode,
     profile,
@@ -173,14 +174,14 @@ async function dispatchMux(
         effort: resolved.effort,
       }
       if (isJsonMode(muxOpts)) {
-        outputJsonSuccess(`mux.${mode}.plan`, data, warnings)
+        outputJsonSuccess(`mux.${mode}.plan`, data, [])
       } else {
         printMuxDryRunPlan(data)
       }
       return
     }
 
-    reportMuxResult(result, muxOpts, warnings)
+    reportMuxResult(result, muxOpts)
     return
   }
 
@@ -249,11 +250,7 @@ function muxResultDetails(result: MuxExecutionResult): Record<string, unknown> {
   return { ...result }
 }
 
-function reportMuxResult(
-  result: MuxExecutionResult,
-  muxOpts: MuxGlobalOptions,
-  warnings: JsonWarning[],
-): void {
+function reportMuxResult(result: MuxExecutionResult, muxOpts: MuxGlobalOptions): void {
   if (result.failed_step) {
     if (isJsonMode(muxOpts)) {
       outputJsonFailure(
@@ -270,7 +267,7 @@ function reportMuxResult(
   }
 
   if (isJsonMode(muxOpts)) {
-    outputJsonSuccess(`mux.${result.mode}`, result, warnings)
+    outputJsonSuccess(`mux.${result.mode}`, result, [])
   } else {
     printMuxExecutionSuccess(result)
   }
@@ -280,7 +277,6 @@ export function createMuxCommand(): Command {
   const mux = new Command('mux')
 
   mux.description('Launch a coding agent via a multiplexer adapter')
-  mux.option('-a, --agent <agent>', 'coding agent id')
 
   const start = new Command('start')
     .description('Start an interactive coding-agent session in a new pane')
