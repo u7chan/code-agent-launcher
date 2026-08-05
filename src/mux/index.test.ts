@@ -326,9 +326,13 @@ describe('mux JSON output', () => {
       expect(output.operation).toBe('mux.run.plan')
       expect(output.data.adapter).toBe('herdr')
       expect(output.data.mode).toBe('run')
+      expect(output.data.profile).toBe('mid')
+      expect(output.data.agent).toBe('codex')
+      expect(output.data.model).toBe('codex/unknown-model')
       expect(output.data.pane_operations).toHaveLength(3)
       expect(output.warnings).toHaveLength(0)
       expect(String(logSpy.mock.calls[0]?.[0])).not.toContain('# Herdr dry-run')
+      expect(String(logSpy.mock.calls[0]?.[0])).not.toContain('level')
     } finally {
       warnSpy.mockRestore()
       logSpy.mockRestore()
