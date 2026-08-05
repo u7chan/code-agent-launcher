@@ -403,6 +403,194 @@ describe('level effort validation', () => {
   })
 })
 
+describe('profile validation', () => {
+  const base = `default_agent: opencode-go\ndefault_level: mid\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      mid:\n        description: Normal\n        default_model: deepseek-v4-pro\n        models: [deepseek-v4-pro]\n  codex:\n    bin: codex\n    provider: codex\n    model_id_prefix: false\n    levels:\n      mid:\n        description: Balanced\n        default_model: gpt-5.6-terra\n        models: [gpt-5.6-terra]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: true }\n`
+
+  function profileFile(profiles: string, defaultProfile?: string): string {
+    const file = join(tmpdir(), `cagent-profile-test-${Math.random()}-${process.pid}.yaml`)
+    const def = defaultProfile !== undefined ? `default_profile: ${defaultProfile}\n` : ''
+    writeFileSync(file, `${def}${base}${profiles}`, 'utf-8')
+    return file
+  }
+
+  it('loads named profiles with a defined default_profile', () => {
+    const file = profileFile(
+      'profiles:\n  fast:\n    agent: opencode-go\n    model: deepseek-v4-flash\n  frontier:\n    agent: codex\n    model: gpt-5.6-sol\n    effort: xhigh\n',
+      'fast',
+    )
+    try {
+      const config = loadConfig(file)
+      expect(config.default_profile).toBe('fast')
+      expect(config.profiles?.fast).toEqual({
+        agent: 'opencode-go',
+        model: 'deepseek-v4-flash',
+      })
+      expect(config.profiles?.frontier).toEqual({
+        agent: 'codex',
+        model: 'gpt-5.6-sol',
+        effort: 'xhigh',
+      })
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('loads a config without profiles', () => {
+    const file = profileFile('')
+    try {
+      const config = loadConfig(file)
+      expect(config.profiles).toBeUndefined()
+      expect(config.default_profile).toBeUndefined()
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects a default_profile that is not defined in profiles', () => {
+    const file = profileFile(
+      'profiles:\n  fast:\n    agent: opencode-go\n    model: deepseek-v4-flash\n',
+      'missing',
+    )
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow('default_profile "missing" is not defined in profiles')
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects a default_profile without a profiles section', () => {
+    const file = profileFile('', 'fast')
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow('default_profile "fast" is not defined in profiles')
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects an empty default_profile', () => {
+    const file = profileFile(
+      'profiles:\n  fast:\n    agent: opencode-go\n    model: deepseek-v4-flash\n',
+      '""',
+    )
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow('default_profile must not be empty')
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects profiles without a default_profile', () => {
+    const file = profileFile(
+      'profiles:\n  fast:\n    agent: opencode-go\n    model: deepseek-v4-flash\n',
+    )
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow(
+        'default_profile is required when profiles are defined',
+      )
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects a profile whose agent is not defined in agents', () => {
+    const file = profileFile(
+      'profiles:\n  fast:\n    agent: unknown-agent\n    model: deepseek-v4-flash\n',
+      'fast',
+    )
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow(
+        'profile "fast".agent "unknown-agent" is not defined in agents',
+      )
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects a profile with an empty model', () => {
+    const file = profileFile('profiles:\n  fast:\n    agent: opencode-go\n    model: ""\n', 'fast')
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow('profile "fast".model must not be empty')
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects a profile with a missing model', () => {
+    const file = profileFile('profiles:\n  fast:\n    agent: opencode-go\n', 'fast')
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow('profile "fast".model must be a string')
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects an empty profile name', () => {
+    const file = profileFile(
+      'profiles:\n  "":\n    agent: opencode-go\n    model: deepseek-v4-flash\n',
+      '""',
+    )
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow('profile name must not be empty')
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects a profile entry that is not an object', () => {
+    const file = profileFile('profiles:\n  fast: not-an-object\n', 'fast')
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow('profile "fast" must be an object')
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects profiles that are not an object', () => {
+    const file = profileFile('profiles: [fast]')
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow('profiles must be an object')
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects an empty profile effort', () => {
+    const file = profileFile(
+      'profiles:\n  fast:\n    agent: opencode-go\n    model: deepseek-v4-flash\n    effort: ""\n',
+      'fast',
+    )
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow('profile "fast".effort must not be empty')
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects a numeric profile effort', () => {
+    const file = profileFile(
+      'profiles:\n  fast:\n    agent: opencode-go\n    model: deepseek-v4-flash\n    effort: 42\n',
+      'fast',
+    )
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow('profile "fast".effort must be a string')
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+})
+
 describe('config', () => {
   it('loads an agent-specific config', () => {
     const file = join(tmpdir(), `cagent-agent-specific-${process.pid}.yaml`)
