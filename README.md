@@ -11,12 +11,12 @@
 
 ## Launch Profile
 
-`cagent` は、名前付きのLaunch Profileを使って実行先を決定します。Profileは実行時に必要な
-`agent`、`model`、任意の `effort` をまとめたプリセットです。
+`cagent` は、名前付きのLaunch Profileを使って実行先を決定します。Launch Profileは実行時に必要な
+`agent`、`model`、任意の`effort`をまとめたプリセットです。
 
-Profile名は任意に付けられます。`reviewer` や `reasoner` という名前を付けても、cagentが
-promptの内容からタスクを分類したり、Profile名からroleやworkflowを推測したりすることは
-ありません。Profileはprompt、role、workflowを持たない実行用プリセットで、promptはCLI引数
+プロファイル名は任意に付けられます。`reviewer` や `reasoner` という名前を付けても、cagentが
+プロンプトの内容からタスクを分類したり、プロファイル名から役割やワークフローを推測したりすることは
+ありません。プロファイルはプロンプト、役割、ワークフローを持たない実行用プリセットで、プロンプトはCLI引数
 として渡します。
 
 ### 最小の有効な設定
@@ -59,41 +59,41 @@ multiplexer:
     run_command_template: "cagent run {profile} -- {prompt}"
 ```
 
-`reviewer` は任意に付けたProfile名の例です。Profileごとに異なる `agent` を指定できるため、
-上の例ではCodexとOpenCode Goを同じ設定で使い分けています。Profileの `agent` は
+`reviewer` は任意に付けたプロファイル名の例です。プロファイルごとに異なる`agent`を指定できるため、
+上の例ではCodexとOpenCode Goを同じ設定で使い分けています。プロファイルの`agent`は
 `agents` に定義された名前でなければなりません。
 
-`cagent config init` は、CodexとOpenCode GoのProfileを含む既定の設定を作成します。内容を
+`cagent config init` は、CodexとOpenCode Goのプロファイルを含む既定の設定を作成します。内容を
 確認するだけなら `cagent config init --dry-run` を使えます。設定ファイルを作成せずに独自の
-Profileを定義する場合は、上のYAMLを保存してください。
+プロファイルを定義する場合は、上のYAMLを保存してください。
 
 ### 解決の優先順位
 
-Profileの選択では、次の順に優先されます。
+プロファイルの選択では、次の順に優先されます。
 
-1. CLIで明示したProfile（`cagent reviewer`、`cagent run reviewer -- ...`）
+1. CLIで明示したプロファイル（`cagent reviewer`、`cagent run reviewer -- ...`）
 2. `CAGENT_PROFILE`
 3. `default_profile`
 
-`cagent mux start <profile>` と `cagent mux run <profile>` は、実装上、Profileを位置引数で
-必ず指定します。`default_profile` は、Profileを省略できる対話実行・非対話実行で使われる
-既定値です。`default_profile` を設定しない場合は、Profileを明示する必要があります。
+`cagent mux start <profile>` と `cagent mux run <profile>` は、実装上、プロファイルを位置引数で
+必ず指定します。`default_profile` は、プロファイルを省略できる対話実行・非対話実行で使われる
+既定値です。`default_profile` を設定しない場合は、プロファイルを明示する必要があります。
 
-選択したProfileの値を上書きする場合の優先順位も、CLI、環境変数、Profileの順です。
+選択したプロファイルの値を上書きする場合の優先順位も、CLI、環境変数、プロファイルの順です。
 
-- model: `--model` → `CAGENT_MODEL` → `profiles.<name>.model`
-- effort: `--effort` → `CAGENT_EFFORT` → `profiles.<name>.effort`
+- `model`: `--model` → `CAGENT_MODEL` → `profiles.<name>.model`
+- `effort`: `--effort` → `CAGENT_EFFORT` → `profiles.<name>.effort`
 
-Profileにeffortを指定しない場合、effortはagent CLIに渡されず、agent側の設定が使われます。
+プロファイルに`effort`を指定しない場合、`effort`はエージェントCLIに渡されず、エージェント側の設定が使われます。
 Codexでは `-c model_reasoning_effort="<effort>"`、OpenCode Goの非対話実行では
 `--variant <effort>` に変換されます。OpenCode Goの対話セッションはeffortに対応しない
-ため、effort付きProfileを `mux start` で使うと失敗します。
+ため、`effort`付きプロファイルを `mux start` で使うと失敗します。
 
 ## CLIの使い方
 
 ### 対話実行
 
-引数を省略すると `default_profile` を使います。Profileを位置引数で指定することもできます。
+引数を省略すると `default_profile` を使います。プロファイルを位置引数で指定することもできます。
 対話実行はTTYが必要です。
 
 ```bash
@@ -106,7 +106,7 @@ cagent reviewer
 
 ### 非対話実行
 
-`run` に渡すpromptは `--` の後ろに指定します。Profileを省略すると、`CAGENT_PROFILE`、
+`run` に渡すプロンプトは `--` の後ろに指定します。プロファイルを省略すると、`CAGENT_PROFILE`、
 `default_profile` の順に解決されます。
 
 ```bash
@@ -116,13 +116,13 @@ cagent run -- "READMEを確認して改善点を列挙して"
 # reviewerを明示して実行
 cagent run reviewer -- "この変更をレビューして"
 
-# modelとeffortをCLIから上書き
+# モデルとeffortをCLIから上書き
 cagent run reasoner --model gpt-5.6-luna --effort high -- "設計上のリスクを整理して"
 ```
 
 ### dry-run
 
-`--dry-run` は解決されたProfileと、agentを起動せずに実行予定のコマンドを表示します。
+`--dry-run` は解決されたプロファイルと、エージェントを起動せずに実行予定のコマンドを表示します。
 `--json` を併用すると `run.plan` のJSONを出力します。
 
 ```bash
@@ -132,9 +132,9 @@ cagent run reviewer --dry-run --json -- "この変更をレビューして"
 ```
 
 通常出力では、たとえば `cagent run reasoner --dry-run -- "review design"` のように、
-Profileの解決結果を先頭に表示します。Profileの選択元 (`cli` / `env` / `default`) と、
-`--model` / `--effort` / 環境変数で適用されたoverrideも表示します。表示されるコマンドは
-agentとeffortに応じて変わります。
+プロファイルの解決結果を先頭に表示します。プロファイルの選択元 (`cli` / `env` / `default`) と、
+`--model` / `--effort` / 環境変数で適用された上書きも表示します。表示されるコマンドは
+エージェントと`effort`に応じて変わります。
 
 ```text
 # Resolved profile: reasoner (source: cli)
@@ -144,8 +144,8 @@ agentとeffortに応じて変わります。
 codex exec --model gpt-5.6-sol -c "model_reasoning_effort=\"high\"" "review design"
 ```
 
-Profileを環境変数や `default_profile` から解決し、CLIで `--effort` を上書きした場合も、
-同じ解決結果を表示できます。overrideされた項目は `# Overrides:` に示します。
+プロファイルを環境変数や `default_profile` から解決し、CLIで `--effort` を上書きした場合も、
+同じ解決結果を表示できます。上書きされた項目は `# Overrides:` に示します。
 
 ```bash
 CAGENT_PROFILE=reasoner cagent run --dry-run --effort xhigh -- "review design"
@@ -160,23 +160,23 @@ CAGENT_PROFILE=reasoner cagent run --dry-run --effort xhigh -- "review design"
 codex exec --model gpt-5.6-sol -c "model_reasoning_effort=\"xhigh\"" "review design"
 ```
 
-### Herdr mux
+### Herdr連携
 
-`mux start` は新しいpaneで対話セッションを開始し、`mux run` は新しいpaneで非対話実行を
+`mux start` は新しいペインで対話セッションを開始し、`mux run` は新しいペインで非対話実行を
 開始します。どちらも `<profile>` が必須です。
 
 ```bash
-# Herdrの新しいpaneで対話セッションを開始
+# Herdrの新しいペインで対話セッションを開始
 cagent mux start reviewer
 
-# Herdrの新しいpaneで1回実行
+# Herdrの新しいペインで1回実行
 cagent mux run reasoner -- "このIssueを調査して"
 
-# Herdrを起動せず、pane操作とagent commandの計画だけを表示
+# Herdrを起動せず、ペイン操作とエージェントコマンドの計画だけを表示
 cagent --dry-run mux run reviewer -- "この変更をレビューして"
 ```
 
-Herdrのdry-runでは次の操作を表示するだけで、`herdr pane current`、`split`、`run`は実際には
+Herdrのドライランでは次の操作を表示するだけで、`herdr pane current`、`split`、`run`は実際には
 呼び出しません。
 
 ```text
@@ -188,14 +188,14 @@ herdr pane run <created-pane> <agent-command>
 Pane IDs shown in this plan are placeholders, not resource IDs.
 ```
 
-通常の `mux start/run` が成功した場合でも、cagentが確認できるのはpaneへのagent commandの
-dispatchまでです。coding-agent taskの完了は追跡しないため、結果の `task_completed` は常に
+通常の `mux start/run` が成功した場合でも、cagentが確認できるのはペインへのエージェントコマンドの
+送信までです。コーディングエージェントのタスク完了は追跡しないため、結果の `task_completed` は常に
 `false` です。
 
 ### 設定・環境の診断
 
-`doctor` は設定ファイル、agentの実行ファイル、provider、`default_profile`、各Profileの
-`agent` / `model`、multiplexerを確認します。`--refresh` を付けるとproviderのmodel一覧を
+`doctor` は設定ファイル、エージェントの実行ファイル、プロバイダー、`default_profile`、各プロファイルの
+`agent` / `model`、マルチプレクサを確認します。`--refresh` を付けるとプロバイダーのモデル一覧を
 更新してから確認します。
 
 ```bash
@@ -204,9 +204,9 @@ cagent doctor --refresh
 cagent doctor --json
 ```
 
-### Profileとmodelの一覧
+### プロファイルとモデルの一覧
 
-`cagent profiles` は設定済みのProfileと、その `agent` / `model` / `effort` を表示します。
+`cagent profiles` は設定済みのプロファイルと、その`agent` / `model` / `effort`を表示します。
 外部CLIは起動しません。`*` は `default_profile` を示します。
 
 ```bash
@@ -222,19 +222,19 @@ frontier     codex       gpt-5.6-sol    high
 * = default_profile
 ```
 
-`cagent models` は設定済みmodelの一覧を表示しません。Profileの一覧には
-`cagent profiles`、providerで利用できるmodelの一覧には `cagent models available` を使います。
+`cagent models` は設定済みモデルの一覧を表示しません。プロファイルの一覧には
+`cagent profiles`、プロバイダーで利用できるモデルの一覧には `cagent models available` を使います。
 `cagent models` 単体はこの案内を表示して終了します。
 
-`models available` はprovider CLIに問い合わせ、現在利用可能なmodelを表示します。
-OpenCode Goでは次のコマンドに対応しています。Codexにはprovider model discovery adapterが
-ないため、Codexで利用できるmodelは `cagent profiles` と設定を確認してください。
+`models available` はプロバイダーCLIに問い合わせ、現在利用可能なモデルを表示します。
+OpenCode Goでは次のコマンドに対応しています。Codexにはプロバイダーのモデル検出アダプターが
+ないため、Codexで利用できるモデルは `cagent profiles` と設定を確認してください。
 
 ```bash
 CAGENT_AGENT=opencode-go cagent models available
 CAGENT_AGENT=opencode-go cagent models available --refresh
 
-# provider CLIを起動せず、解決されるコマンドだけ確認
+# プロバイダーCLIを起動せず、解決されるコマンドだけ確認
 CAGENT_AGENT=opencode-go cagent --dry-run models available --refresh
 ```
 
@@ -243,15 +243,15 @@ CAGENT_AGENT=opencode-go cagent --dry-run models available --refresh
 | 環境変数 | 用途 |
 | --- | --- |
 | `CAGENT_CONFIG` | 設定ファイルのパスを上書き |
-| `CAGENT_AGENT` | `models available` と `doctor` の対象agentを上書き |
-| `CAGENT_PROFILE` | Profile選択を上書き |
-| `CAGENT_MODEL` | 選択Profileのmodelを上書き |
-| `CAGENT_EFFORT` | 選択Profileのeffortを上書き |
+| `CAGENT_AGENT` | `models available` と `doctor` の対象エージェントを上書き |
+| `CAGENT_PROFILE` | プロファイル選択を上書き |
+| `CAGENT_MODEL` | 選択したプロファイルのモデルを上書き |
+| `CAGENT_EFFORT` | 選択したプロファイルの`effort`を上書き |
 
-たとえば、環境変数でProfileを切り替え、CLIからpromptだけを渡せます。
+たとえば、環境変数でプロファイルを切り替え、CLIからプロンプトだけを渡せます。
 
 ```bash
-CAGENT_PROFILE=reviewer cagent run -- "環境変数で選んだProfileを使う"
+CAGENT_PROFILE=reviewer cagent run -- "環境変数で選んだプロファイルを使う"
 CAGENT_PROFILE=reasoner CAGENT_EFFORT=high cagent run -- "設計を検討する"
 ```
 
@@ -259,7 +259,7 @@ CAGENT_PROFILE=reasoner CAGENT_EFFORT=high cagent run -- "設計を検討する"
 <summary>v0.3.xからv1.0.0への手動移行</summary>
 
 v1.0.0では後方互換の読み取りや自動変換を行いません。既存の設定をバックアップし、
-Profile名、agent、model、effortを手動で移してください。以下の `before` は旧形式を説明する
+プロファイル名、エージェント、モデル、`effort`を手動で移してください。以下の `before` は旧形式を説明する
 ためだけの例であり、新しい設定としては使用しないでください。
 
 ```yaml
@@ -307,17 +307,17 @@ multiplexer:
     enabled: true
 ```
 
-移行する際は、実行用途ごとに任意のProfile名を付け、旧形式のmodel設定を
+移行する際は、実行用途ごとに任意のプロファイル名を付け、旧形式のモデル設定を
 `profiles.<name>.model`へ移します。共通の既定値は `default_profile` に設定し、実行ごとに
-別のProfileを使う場合はCLIまたは `CAGENT_PROFILE` で明示します。旧形式の環境変数やCLI
-指定は自動変換されないため、上記の新しいProfile選択と上書き規則に合わせて手動で置き換えて
+別のプロファイルを使う場合はCLIまたは `CAGENT_PROFILE` で明示します。旧形式の環境変数やCLI
+指定は自動変換されないため、上記の新しいプロファイル選択と上書き規則に合わせて手動で置き換えて
 ください。
 
 </details>
 
 ## Linuxへのインストール
 
-`standalone`リリースでは、Linux glibc向けのx64とarm64を提供します。WSL2のUbuntuなど、
+スタンドアロンリリースでは、Linux glibc向けのx64とarm64を提供します。WSL2のUbuntuなど、
 glibcベースのLinuxディストリビューションでも同じ手順を使用できます。GitHubのReleasesページで
 バージョンを確認し、アーキテクチャに合うアーカイブをダウンロードしてください。`curl`、`tar`、
 GNU `sha256sum`を使用します。
@@ -351,10 +351,10 @@ install -m 0755 "cagent-v${VERSION}-linux-${ARCH}/cagent" "$HOME/.local/bin/cage
 最後に `install -m 0755` で既存のバイナリを置き換えます。検証前に既存のバイナリを削除しないで
 ください。設定は`~/.config/cagent/config.yaml`にあり、バイナリを更新しても変更されません。
 
-### リリースの完全性とattestation
+### リリースの完全性とアテステーション
 
 `SHA256SUMS`はダウンロード時の破損とアセットの取り違えを検出します。さらにGitHub CLIを使って、
-Immutable Release由来のrelease attestationと、Release workflowが生成したbuild provenanceを
+Immutable Release由来のリリースアテステーションと、リリースワークフローが生成したビルドプロベナンスを
 検証できます。これらのサブコマンドを含む最新版のGitHub CLIをインストールし、`gh auth login`を
 済ませてください。使用中のCLIが対応しているかは、`gh release verify --help`と
 `gh attestation verify --help`で確認できます。
@@ -374,7 +374,7 @@ gh attestation verify "$ASSET" \
   --signer-workflow "$REPOSITORY/.github/workflows/release.yml"
 ```
 
-チェックサム、リリースの完全性、attestationのいずれかの検証に失敗したアセットは実行せず、
+チェックサム、リリースの完全性、アテステーションのいずれかの検証に失敗したアセットは実行せず、
 ダウンロード元、バージョン、アーキテクチャを確認してください。`SHA256SUMS`にダウンロードした
 アーカイブ名が含まれることも確認します。
 
@@ -396,11 +396,11 @@ rm "$HOME/.local/bin/cagent"
 ## ローカル検証
 
 CodexとOpenCode Goのモデルルーティング検証は [`validation/`](validation/) で管理します。
-ここで指定する `--profile core` と `--profile extended` はvalidation runnerの実行モードであり、
+ここで指定する `--profile core` と `--profile extended` は検証ランナーの実行モードであり、
 cagentのLaunch Profileとは別の指定です。
 
 ```bash
-# buildとLaunch Profileごとのmodel解決を確認（外部CLIは起動しない）
+# ビルドとLaunch Profileごとのモデル解決を確認（外部CLIは起動しない）
 bun run validate smoke --profile core
 
 # CodexとOpenCode GoのCLIを実際に起動（外部モデル呼び出しあり）
@@ -408,7 +408,7 @@ bun run validate smoke --profile core --live
 ```
 
 ルーティングmatrixは `codex-fast`、`codex-balanced`、`codex-frontier` と、それらに対応する
-OpenCode GoのProfileで構成されています。実行結果は `validation/.artifacts/` に保存され、
+OpenCode Goのプロファイルで構成されています。実行結果は `validation/.artifacts/` に保存され、
 Gitでは管理しません。`--live` は外部モデルを呼び出すため、明示的な依頼または確認がある場合
 だけ実行してください。
 
@@ -419,21 +419,21 @@ Gitでは管理しません。`--live` は外部モデルを呼び出すため�
 リリースを開始するときは [`.agents/skills/github-release/SKILL.md`](.agents/skills/github-release/SKILL.md)
 を使用します。
 
-通常のCIはBun 1.3.10を使い、Linux x64向けstandaloneのビルド・パッケージ化、アーカイブ構造、
-SHA-256チェックサム、隔離環境でのsmoke testを検証します。ローカルではLinux x64環境で同じ検証を
+通常のCIはBun 1.3.10を使い、Linux x64向けスタンドアロンのビルド・パッケージ化、アーカイブ構造、
+SHA-256チェックサム、隔離環境でのスモークテストを検証します。ローカルではLinux x64環境で同じ検証を
 次のコマンドから実行できます。
 
 ```bash
 bun run release:check
 ```
 
-smoke testはリポジトリ外の一時ディレクトリで `cagent --version`、`cagent --help`、一時的な
+スモークテストはリポジトリ外の一時ディレクトリで `cagent --version`、`cagent --help`、一時的な
 `CAGENT_CONFIG`を使う `cagent config init` を実行します。生成された既定設定の
-`default_profile`を使ったdry-runも確認し、実行ディレクトリの`.env`と`bunfig.toml`が環境変数や
+`default_profile`を使ったドライランも確認し、実行ディレクトリの`.env`と`bunfig.toml`が環境変数や
 preloadを注入しないことも検証します。
 
-指定したstable SemVer tag、`package.json`のversion、および生成済みアーカイブを検証する場合は
-次のコマンドを使用します。アーカイブは展開せず、entry一覧を検査します。
+指定した安定版SemVerタグ、`package.json`のバージョン、および生成済みアーカイブを検証する場合は
+次のコマンドを使用します。アーカイブは展開せず、エントリ一覧を検査します。
 
 ```bash
 bun run release:validate -- --tag v0.1.0
@@ -441,16 +441,16 @@ bun run release:validate -- --tag v0.1.0 \
   --archive release/cagent-v0.1.0-linux-x64.tar.gz --arch x64
 ```
 
-チェックサム処理は、後続のrelease workflowから次の形で再利用できます。
+チェックサム処理は、後続のリリースワークフローから次の形で再利用できます。
 
 ```bash
 bun run release:checksum -- generate release/SHA256SUMS release/*.tar.gz
 bun run release:checksum -- verify release/SHA256SUMS release
 ```
 
-## Standaloneリリースアーティファクト
+## スタンドアロンリリースアーティファクト
 
-`bun run build:standalone`は、Linux glibc x64 baselineとarm64向けのstandaloneアーカイブを
+`bun run build:standalone`は、Linux glibc x64ベースラインとarm64向けのスタンドアロンアーカイブを
 `release/`に生成します。各アーカイブは次の固定構造です。
 
 ```text
@@ -460,6 +460,6 @@ cagent-vX.Y.Z-linux-<arch>/
   LICENSE
 ```
 
-アーカイブは固定のファイル順、mtime、owner/group、gzip timestampで生成します。同じ入力と固定した
-Bun toolchainではアーカイブの再現性を確認できます。一方、Bun standaloneバイナリ自体の
-byte-for-byte再現性は保証対象ではありません。
+アーカイブは固定のファイル順、更新時刻、所有者/グループ、gzipのタイムスタンプで生成します。同じ入力と固定した
+Bunツールチェーンではアーカイブの再現性を確認できます。一方、Bunスタンドアロンバイナリ自体の
+バイト単位の再現性は保証対象ではありません。

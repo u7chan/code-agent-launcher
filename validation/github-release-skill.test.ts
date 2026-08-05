@@ -310,14 +310,14 @@ describe('github-release repository contract', () => {
     for (const heading of [
       'Linuxへのインストール',
       '更新',
-      'リリースの完全性とattestation',
+      'リリースの完全性とアテステーション',
       'アンインストール',
       'サポート範囲',
     ]) {
       expect(readme).toContain(heading)
     }
     expect(releasing).toContain('Prepare: バージョン更新PR')
-    expect(releasing).toContain('Start: マージ後のタグpush')
+    expect(releasing).toContain('Start: マージ後のタグをプッシュ')
     expect(releasing).toContain('初回リリースのリハーサルチェックリスト')
     expect(skill).toContain('新たな明示承認')
     expect(skill).toContain('merge待ちで停止する')
