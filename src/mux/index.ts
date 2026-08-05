@@ -169,8 +169,11 @@ async function dispatchMux(
         ...plan,
         agent: agentId,
         profile: resolved.name,
+        profile_source: resolved.source,
         model: resolved.model,
+        model_source: resolved.modelSource,
         effort: resolved.effort,
+        effort_source: resolved.effortSource,
       }
       if (isJsonMode(muxOpts)) {
         outputJsonSuccess(`mux.${mode}.plan`, data, [])
@@ -208,6 +211,11 @@ function failedStepMessage(result: MuxExecutionResult): string {
 }
 
 export function printMuxDryRunPlan(plan: MuxExecutionPlanResult): void {
+  if (plan.profile) {
+    console.log(`# Resolved profile: ${plan.profile} (source: ${plan.profile_source ?? 'default'})`)
+    console.log(`# Resolved agent: ${plan.agent}`)
+    console.log(`# Resolved model: ${plan.model}`)
+  }
   console.log('# Herdr dry-run command sequence:')
   console.log('No Herdr command was invoked.')
   console.log('herdr pane current --current')

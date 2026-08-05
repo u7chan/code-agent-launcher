@@ -116,6 +116,8 @@ multiplexer:
       expect(output.data.interactive).toBe(false)
       expect(output.data.config_path).toBe(file)
       expect(output.data.profile).toBe('mid')
+      expect(output.data.profile_source).toBe('cli')
+      expect(output.data.model_source).toBe('profile')
       expect(output.data.command.args).toContain('hello')
     } finally {
       logSpy.mockRestore()

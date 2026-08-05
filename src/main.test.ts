@@ -102,7 +102,9 @@ describe('createMainCommand', () => {
     try {
       const program = createMainCommand()
       await program.parseAsync(['node', 'cagent', 'mid', '--dry-run'])
-      expect(logSpy).toHaveBeenCalledWith('# Resolved profile: mid')
+      expect(logSpy).toHaveBeenCalledWith('# Resolved profile: mid (source: cli)')
+      expect(logSpy).toHaveBeenCalledWith('# Resolved agent: codex')
+      expect(logSpy).toHaveBeenCalledWith('# Resolved model: gpt-5')
     } finally {
       logSpy.mockRestore()
       restoreTty()
@@ -134,6 +136,8 @@ describe('createMainCommand', () => {
       expect(output.data.interactive).toBe(true)
       expect(output.data.agent).toBe('codex')
       expect(output.data.profile).toBe('mid')
+      expect(output.data.profile_source).toBe('cli')
+      expect(output.data.model_source).toBe('profile')
       expect(output.data.config_path).toBe(config)
       expect(output.data.command.executable).toBe('node')
       expect(String(logSpy.mock.calls[0]?.[0])).not.toContain('# Resolved profile')

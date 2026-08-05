@@ -98,10 +98,13 @@ export function createMainCommand(): Command {
           outputJsonSuccess('run.plan', {
             interactive: true,
             config_path: resolveConfigPath(),
-            agent: agentId,
             profile: resolved.name,
+            profile_source: resolved.source,
+            agent: agentId,
             model: resolved.model,
+            model_source: resolved.modelSource,
             effort: resolved.effort,
+            effort_source: resolved.effortSource,
             command: {
               executable: spec.command,
               args: spec.args,
@@ -110,9 +113,21 @@ export function createMainCommand(): Command {
           })
           return
         }
-        console.log(`# Resolved profile: ${resolved.name}`)
+        console.log(`# Resolved profile: ${resolved.name} (source: ${resolved.source})`)
+        console.log(`# Resolved agent: ${agentId}`)
+        console.log(`# Resolved model: ${resolved.model}`)
         if (resolved.effort) {
           console.log(`# Resolved effort: ${resolved.effort}`)
+        }
+        const overrides: string[] = []
+        if (resolved.modelSource !== 'profile') {
+          overrides.push(`model=${resolved.modelSource}`)
+        }
+        if (resolved.effortSource !== undefined && resolved.effortSource !== 'profile') {
+          overrides.push(`effort=${resolved.effortSource}`)
+        }
+        if (overrides.length > 0) {
+          console.log(`# Overrides: ${overrides.join(', ')}`)
         }
         console.log(formatCommandSpec(spec))
         return
