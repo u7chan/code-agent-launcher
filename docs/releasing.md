@@ -71,6 +71,23 @@ tag filterは起動範囲を絞る境界であり、build前に次の条件を�
 6. `publish` jobだけが`release` Environmentの承認を待つ
 7. 承認後にdraftを作成し、3 assetの完全性を確認してから公開する
 
+### Launch Profile smoke contract
+
+native smokeは`cagent config init`で生成される設定を使います。生成された設定の
+`default_profile`を解決するdry-runを実行し、`# Resolved profile: balanced`が出力される
+ことを確認します。これはagent CLIや外部modelを起動せず、standalone binaryが新しい
+Launch Profile設定を読み取れることだけを検証します。
+
+```bash
+CAGENT_CONFIG="$config_path" "$binary" config init
+test -f "$config_path"
+CAGENT_CONFIG="$config_path" "$binary" --dry-run \
+  | grep -F '# Resolved profile: balanced'
+```
+
+実際のnative smokeでは、隔離directoryの`.env`や`bunfig.toml`から設定・preloadが注入
+されないことも併せて確認します。
+
 ARM64 smokeにはGA済みのGitHub-hosted runner `ubuntu-24.04-arm`を使用します。PRの
 `release-validation`もx64/arm64の両native runnerで`bun run release:check`を実行します。
 runnerのarchitectureはlogへ出力し、runner/setupの障害とbinary smokeの失敗を区別します。
