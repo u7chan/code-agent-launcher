@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'bun:test'
 import { OpenCodeStartError, opencodeGoAdapter } from './opencode-go.js'
 
-const config = { bin: 'opencode', provider: 'opencode-go', levels: {} }
+const config = { bin: 'opencode', provider: 'opencode-go' }
 const baseContext = {
   bin: 'opencode',
-  level: 'mid',
   cwd: '/tmp',
   config,
 }

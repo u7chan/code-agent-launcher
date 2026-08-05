@@ -12,11 +12,11 @@ import {
 } from './runner.js'
 
 describe('Codex validation matrix', () => {
-  it('maps low, mid, and high to the agreed Codex models', () => {
+  it('maps codex profiles to the agreed Codex models', () => {
     expect(loadMatrix().codex).toEqual({
-      low: { expected_model: 'gpt-5.6-luna' },
-      mid: { expected_model: 'gpt-5.6-terra' },
-      high: { expected_model: 'gpt-5.6-sol' },
+      'codex-fast': { expected_model: 'gpt-5.6-luna' },
+      'codex-balanced': { expected_model: 'gpt-5.6-terra' },
+      'codex-frontier': { expected_model: 'gpt-5.6-sol' },
     })
   })
 
@@ -37,11 +37,11 @@ describe('Codex validation matrix', () => {
 })
 
 describe('OpenCode validation matrix', () => {
-  it('maps low, mid, and high to the agreed OpenCode models', () => {
+  it('maps opencode-go profiles to the agreed OpenCode models', () => {
     expect(loadMatrix()['opencode-go']).toEqual({
-      low: { expected_model: 'opencode-go/deepseek-v4-flash' },
-      mid: { expected_model: 'opencode-go/deepseek-v4-pro' },
-      high: { expected_model: 'opencode-go/kimi-k2.7-code' },
+      'opencode-fast': { expected_model: 'opencode-go/deepseek-v4-flash' },
+      'opencode-balanced': { expected_model: 'opencode-go/deepseek-v4-pro' },
+      'opencode-frontier': { expected_model: 'opencode-go/kimi-k2.7-code' },
     })
   })
 
@@ -628,8 +628,8 @@ exec ${process.execPath} "$@"`,
         reportDir,
         '--agent',
         'codex',
-        '--level',
-        'mid',
+        '--target',
+        'codex-balanced',
         '--attestation',
         attestation,
         '--live',
@@ -677,8 +677,8 @@ exec ${process.execPath} "$@"`,
         reportDir,
         '--agent',
         'opencode-go',
-        '--level',
-        'mid',
+        '--target',
+        'opencode-balanced',
         '--attestation',
         attestation,
         '--live',

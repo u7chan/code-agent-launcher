@@ -1,14 +1,14 @@
 codex:
-  low:
+  codex-fast:
     expected_model: gpt-5.6-luna
-  mid:
+  codex-balanced:
     expected_model: gpt-5.6-terra
-  high:
+  codex-frontier:
     expected_model: gpt-5.6-sol
 opencode-go:
-  low:
+  opencode-fast:
     expected_model: opencode-go/deepseek-v4-flash
-  mid:
+  opencode-balanced:
     expected_model: opencode-go/deepseek-v4-pro
-  high:
+  opencode-frontier:
     expected_model: opencode-go/kimi-k2.7-code

@@ -38,7 +38,6 @@ function writeTestConfig(path: string, bin: string): void {
   writeFileSync(
     path,
     `default_agent: codex
-default_level: mid
 default_profile: mid
 profiles:
   mid: { agent: codex, model: gpt-5 }
@@ -47,11 +46,6 @@ agents:
     bin: ${bin}
     provider: codex
     model_id_prefix: false
-    levels:
-      mid:
-        description: Normal
-        default_model: gpt-5
-        models: [gpt-5]
 multiplexer:
   default: herdr
   herdr:

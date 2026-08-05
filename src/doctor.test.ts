@@ -17,6 +17,11 @@ function writeTempConfig(content: string): { file: string; cleanup: () => void }
   }
 }
 
+const MULTIPLEXER_TAIL = `multiplexer:
+  default: herdr
+  herdr: { enabled: true }
+`
+
 describe('doctor JSON output', () => {
   it('outputs a versioned summary and checks without human formatting', () => {
     const results: CheckResult[] = [
@@ -45,21 +50,16 @@ describe('doctor JSON output', () => {
 describe('doctor effort reporting', () => {
   it('reports opencode-go effort as effective with run --variant', () => {
     const { file, cleanup } = writeTempConfig(`default_agent: opencode-go
-default_level: mid
+profiles:
+  mid:
+    agent: opencode-go
+    model: ${'test-model'}
+    effort: high
 agents:
   opencode-go:
     bin: opencode
     provider: opencode-go
-    levels:
-      mid:
-        description: Normal
-        default_model: deepseek-v4-pro
-        models: [deepseek-v4-pro]
-        effort: high
-multiplexer:
-  default: herdr
-  herdr: { enabled: true }
-`)
+${MULTIPLEXER_TAIL}`)
     process.env.CAGENT_CONFIG = file
     try {
       const results = runDoctor()
@@ -77,22 +77,17 @@ multiplexer:
 
   it('reports codex effort as passed via -c model_reasoning_effort', () => {
     const { file, cleanup } = writeTempConfig(`default_agent: codex
-default_level: mid
+profiles:
+  mid:
+    agent: codex
+    model: ${'test-model'}
+    effort: high
 agents:
   codex:
     bin: codex
     provider: codex
     model_id_prefix: false
-    levels:
-      mid:
-        description: Normal
-        default_model: gpt-5
-        models: [gpt-5]
-        effort: high
-multiplexer:
-  default: herdr
-  herdr: { enabled: true }
-`)
+${MULTIPLEXER_TAIL}`)
     process.env.CAGENT_CONFIG = file
     try {
       const results = runDoctor()
@@ -109,41 +104,32 @@ multiplexer:
 
   it('reports multi-agent config with different efforts correctly', () => {
     const { file, cleanup } = writeTempConfig(`default_agent: opencode-go
-default_level: mid
+profiles:
+  opencode-mid:
+    agent: opencode-go
+    model: ${'test-model-a'}
+    effort: mid-effort
+  opencode-high:
+    agent: opencode-go
+    model: ${'test-model-b'}
+    effort: high-effort
+  codex-low:
+    agent: codex
+    model: ${'test-model-c'}
+    effort: low-effort
+  codex-mid:
+    agent: codex
+    model: ${'test-model-d'}
+    effort: mid-effort
 agents:
   opencode-go:
     bin: opencode
     provider: opencode-go
-    levels:
-      mid:
-        description: Normal
-        default_model: deepseek-v4-pro
-        models: [deepseek-v4-pro]
-        effort: mid-effort
-      high:
-        description: Complex
-        default_model: kimi-k2.7-code
-        models: [kimi-k2.7-code]
-        effort: high-effort
   codex:
     bin: codex
     provider: codex
     model_id_prefix: false
-    levels:
-      low:
-        description: Simple
-        default_model: gpt-5.6-luna
-        models: [gpt-5.6-luna]
-        effort: low-effort
-      mid:
-        description: Normal
-        default_model: gpt-5.6-terra
-        models: [gpt-5.6-terra]
-        effort: mid-effort
-multiplexer:
-  default: herdr
-  herdr: { enabled: true }
-`)
+${MULTIPLEXER_TAIL}`)
     process.env.CAGENT_CONFIG = file
     try {
       const results = runDoctor()
@@ -153,21 +139,21 @@ multiplexer:
       const opencodeMid = effortResults.find(
         (r) =>
           r.message.includes('opencode-go') &&
-          r.message.includes('mid') &&
-          !r.message.includes('high'),
+          r.message.includes('opencode-mid') &&
+          !r.message.includes('opencode-high'),
       )
       expect(opencodeMid).not.toBeUndefined()
       expect(opencodeMid?.status).toBe('OK')
       expect(opencodeMid?.message).toContain('--variant')
 
       const opencodeHigh = effortResults.find(
-        (r) => r.message.includes('opencode-go') && r.message.includes('high'),
+        (r) => r.message.includes('opencode-go') && r.message.includes('opencode-high'),
       )
       expect(opencodeHigh).not.toBeUndefined()
       expect(opencodeHigh?.status).toBe('OK')
 
       const codexLow = effortResults.find(
-        (r) => r.message.includes('codex') && r.message.includes('low'),
+        (r) => r.message.includes('codex') && r.message.includes('codex-low'),
       )
       expect(codexLow).not.toBeUndefined()
       expect(codexLow?.status).toBe('OK')
@@ -175,7 +161,9 @@ multiplexer:
 
       const codexMid = effortResults.find(
         (r) =>
-          r.message.includes('codex') && r.message.includes('mid') && !r.message.includes('high'),
+          r.message.includes('codex') &&
+          r.message.includes('codex-mid') &&
+          !r.message.includes('codex-low'),
       )
       expect(codexMid).not.toBeUndefined()
       expect(codexMid?.status).toBe('OK')
@@ -186,20 +174,15 @@ multiplexer:
 
   it('does not report effort when not configured', () => {
     const { file, cleanup } = writeTempConfig(`default_agent: opencode-go
-default_level: mid
+profiles:
+  mid:
+    agent: opencode-go
+    model: ${'test-model'}
 agents:
   opencode-go:
     bin: opencode
     provider: opencode-go
-    levels:
-      mid:
-        description: Normal
-        default_model: deepseek-v4-pro
-        models: [deepseek-v4-pro]
-multiplexer:
-  default: herdr
-  herdr: { enabled: true }
-`)
+${MULTIPLEXER_TAIL}`)
     process.env.CAGENT_CONFIG = file
     try {
       const results = runDoctor()
@@ -214,29 +197,22 @@ multiplexer:
 describe('doctor agent resolution', () => {
   it('inspects the specified agent when agentId is passed', () => {
     const { file, cleanup } = writeTempConfig(`default_agent: codex
-default_level: mid
+profiles:
+  balanced:
+    agent: opencode-go
+    model: ${'test-model-a'}
+  frontier:
+    agent: codex
+    model: ${'test-model-b'}
 agents:
   opencode-go:
     bin: opencode
     provider: opencode-go
-    levels:
-      mid:
-        description: Normal
-        default_model: deepseek-v4-pro
-        models: [deepseek-v4-pro]
   codex:
     bin: codex
     provider: codex
     model_id_prefix: false
-    levels:
-      mid:
-        description: Balanced
-        default_model: gpt-5.6-terra
-        models: [gpt-5.6-terra]
-multiplexer:
-  default: herdr
-  herdr: { enabled: true }
-`)
+${MULTIPLEXER_TAIL}`)
     process.env.CAGENT_CONFIG = file
     try {
       const results = runDoctor({}, 'opencode-go')
@@ -251,19 +227,14 @@ multiplexer:
 
   it('stops at config validation when an agent provider is missing', () => {
     const { file, cleanup } = writeTempConfig(`default_agent: opencode-go
-default_level: mid
+profiles:
+  mid:
+    agent: opencode-go
+    model: ${'test-model'}
 agents:
   opencode-go:
     bin: opencode
-    levels:
-      mid:
-        description: Normal
-        default_model: deepseek-v4-pro
-        models: [deepseek-v4-pro]
-multiplexer:
-  default: herdr
-  herdr: { enabled: true }
-`)
+${MULTIPLEXER_TAIL}`)
     process.env.CAGENT_CONFIG = file
     try {
       const results = runDoctor()
@@ -282,29 +253,22 @@ multiplexer:
 
   it('falls back to default_agent when agentId is not passed', () => {
     const { file, cleanup } = writeTempConfig(`default_agent: codex
-default_level: mid
+profiles:
+  balanced:
+    agent: opencode-go
+    model: ${'test-model-a'}
+  frontier:
+    agent: codex
+    model: ${'test-model-b'}
 agents:
   opencode-go:
     bin: opencode
     provider: opencode-go
-    levels:
-      mid:
-        description: Normal
-        default_model: deepseek-v4-pro
-        models: [deepseek-v4-pro]
   codex:
     bin: codex
     provider: codex
     model_id_prefix: false
-    levels:
-      mid:
-        description: Balanced
-        default_model: gpt-5.6-terra
-        models: [gpt-5.6-terra]
-multiplexer:
-  default: herdr
-  herdr: { enabled: true }
-`)
+${MULTIPLEXER_TAIL}`)
     process.env.CAGENT_CONFIG = file
     try {
       const results = runDoctor()
@@ -318,21 +282,16 @@ multiplexer:
 
   it('errors when specified agentId is not in config', () => {
     const { file, cleanup } = writeTempConfig(`default_agent: codex
-default_level: mid
+profiles:
+  balanced:
+    agent: codex
+    model: ${'test-model'}
 agents:
   codex:
     bin: codex
     provider: codex
     model_id_prefix: false
-    levels:
-      mid:
-        description: Balanced
-        default_model: gpt-5.6-terra
-        models: [gpt-5.6-terra]
-multiplexer:
-  default: herdr
-  herdr: { enabled: true }
-`)
+${MULTIPLEXER_TAIL}`)
     process.env.CAGENT_CONFIG = file
     try {
       const results = runDoctor({}, 'nonexistent')

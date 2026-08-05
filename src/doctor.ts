@@ -7,12 +7,13 @@ import { findExecutable } from './command.js'
 import {
   type Config,
   ConfigError,
+  type LaunchProfile,
   loadConfig,
   type MultiplexerAdapter,
   resolveConfigPath,
 } from './config.js'
 import { isJsonMode, outputJsonSuccess } from './json-output.js'
-import { collectAllFullModelIds, collectAllModels, normalizeAgentModelId } from './model.js'
+import { normalizeAgentModelId } from './model.js'
 
 export type CheckStatus = 'OK' | 'WARN' | 'ERROR' | 'SKIP'
 
@@ -112,101 +113,108 @@ export function runDoctor(options: DoctorOptions = {}, agentId?: string): CheckR
     results.push(error('agent.provider', 'provider is not defined', { agent: effectiveAgentId }))
   }
 
-  const activeLevels = activeAgent.levels
-
-  // 5. default_level exists
-  if (activeLevels[config.default_level]) {
-    results.push(
-      ok('agent.levels', `default_level exists: ${config.default_level}`, {
-        agent: effectiveAgentId,
-        default_level: config.default_level,
-        levels: Object.keys(activeLevels),
-      }),
-    )
-  } else {
-    results.push(
-      error('agent.levels', `default_level "${config.default_level}" is not defined in levels`, {
-        agent: effectiveAgentId,
-        default_level: config.default_level,
-        levels: Object.keys(activeLevels),
-      }),
-    )
-  }
-
-  // 6-8. per level checks
-  for (const [levelName, level] of Object.entries(activeLevels)) {
-    if (level.default_model && level.default_model.length > 0) {
+  // 5. default_profile exists
+  const profiles = config.profiles ?? {}
+  if (config.default_profile) {
+    if (profiles[config.default_profile]) {
       results.push(
-        ok(
-          'agent.level.default_model',
-          `level "${levelName}" default_model defined: ${level.default_model}`,
-          {
-            agent: effectiveAgentId,
-            level: levelName,
-            default_model: level.default_model,
-          },
-        ),
-      )
-    } else {
-      results.push(
-        error('agent.level.default_model', `level "${levelName}" default_model is not defined`, {
-          agent: effectiveAgentId,
-          level: levelName,
+        ok('config.default_profile', `default_profile exists: ${config.default_profile}`, {
+          default_profile: config.default_profile,
+          profile_count: Object.keys(profiles).length,
         }),
-      )
-    }
-
-    const normalizedDefault = normalizeAgentModelId(level.default_model, activeAgent)
-    if (level.models.includes(level.default_model)) {
-      results.push(
-        ok(
-          'agent.level.models',
-          `level "${levelName}" default_model is in models: ${level.default_model}`,
-          {
-            agent: effectiveAgentId,
-            level: levelName,
-            default_model: level.default_model,
-            models: level.models,
-          },
-        ),
       )
     } else {
       results.push(
         error(
-          'agent.level.models',
-          `level "${levelName}" default_model "${level.default_model}" is not in models (normalized: ${normalizedDefault})`,
+          'config.default_profile',
+          `default_profile "${config.default_profile}" is not defined in profiles`,
           {
-            agent: effectiveAgentId,
-            level: levelName,
-            default_model: level.default_model,
-            normalized_default_model: normalizedDefault,
-            models: level.models,
+            default_profile: config.default_profile,
+            available_profiles: Object.keys(profiles),
           },
         ),
       )
     }
+  } else {
+    results.push(
+      warn(
+        'config.default_profile',
+        'default_profile is not set; profile must be specified explicitly',
+      ),
+    )
   }
 
-  // 9. model id normalization
-  try {
-    const allModels = collectAllModels(config, effectiveAgentId)
-    for (const model of allModels) {
-      const normalized = normalizeAgentModelId(model, activeAgent)
+  // 6-8. per-profile checks
+  for (const [profileName, profile] of Object.entries(profiles)) {
+    // profile.agent is valid
+    if (profile.agent && config.agents[profile.agent]) {
       results.push(
-        ok('agent.models.normalization', `model id normalized: ${model} -> ${normalized}`, {
-          agent: effectiveAgentId,
-          model,
-          normalized_model: normalized,
+        ok('profile.agent', `profile "${profileName}" agent "${profile.agent}" is defined`, {
+          profile: profileName,
+          agent: profile.agent,
+        }),
+      )
+    } else {
+      results.push(
+        error(
+          'profile.agent',
+          `profile "${profileName}" agent "${profile.agent}" is not defined in agents`,
+          { profile: profileName, agent: profile.agent },
+        ),
+      )
+    }
+
+    // profile.model is non-empty
+    if (profile.model && profile.model.length > 0) {
+      results.push(
+        ok('profile.model', `profile "${profileName}" model defined: ${profile.model}`, {
+          profile: profileName,
+          model: profile.model,
+        }),
+      )
+    } else {
+      results.push(
+        error('profile.model', `profile "${profileName}" model is not defined`, {
+          profile: profileName,
         }),
       )
     }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+  }
+
+  if (Object.keys(profiles).length === 0) {
     results.push(
-      error('agent.models.normalization', `model id normalization failed: ${message}`, {
-        agent: effectiveAgentId,
-      }),
+      warn('profiles.empty', 'no profiles defined; add at least one profile to use cagent'),
     )
+  }
+
+  // 9. model id normalization (sample: default_profile's agent)
+  const defaultProfileName = config.default_profile
+  const defaultProfile = defaultProfileName ? profiles[defaultProfileName] : undefined
+  if (defaultProfile?.model) {
+    const profileAgent = config.agents[defaultProfile.agent]
+    if (profileAgent) {
+      try {
+        const normalized = normalizeAgentModelId(defaultProfile.model, profileAgent)
+        results.push(
+          ok(
+            'agent.models.normalization',
+            `model id normalized: ${defaultProfile.model} -> ${normalized}`,
+            {
+              agent: defaultProfile.agent,
+              model: defaultProfile.model,
+              normalized_model: normalized,
+            },
+          ),
+        )
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        results.push(
+          error('agent.models.normalization', `model id normalization failed: ${message}`, {
+            agent: defaultProfile.agent,
+          }),
+        )
+      }
+    }
   }
 
   // 10. models list via agent bin
@@ -274,23 +282,30 @@ export function runDoctor(options: DoctorOptions = {}, agentId?: string): CheckR
     )
   }
 
-  // 11. config models exist in actual list
+  // 11. profile models exist in provider list
   if (availableModels.length > 0) {
-    const configuredModels = collectAllFullModelIds(config, effectiveAgentId)
-    for (const model of configuredModels) {
-      if (availableModels.includes(model)) {
+    const profileModels = new Map(
+      Object.values(profiles)
+        .filter((p): p is LaunchProfile & { model: string } => !!p.model)
+        .map((p) => [p.model, p]),
+    )
+    for (const [model, profile] of profileModels) {
+      const profileAgent = config.agents[profile.agent]
+      if (!profileAgent) continue
+      const fullId = normalizeAgentModelId(model, profileAgent)
+      if (availableModels.includes(fullId)) {
         results.push(
-          ok('agent.models.configured', `configured model exists in provider: ${model}`, {
-            agent: effectiveAgentId,
+          ok('agent.models.configured', `profile model exists in provider: ${fullId}`, {
             model,
+            full_id: fullId,
             available: true,
           }),
         )
       } else {
         results.push(
-          warn('agent.models.configured', `configured model not found in provider list: ${model}`, {
-            agent: effectiveAgentId,
+          warn('agent.models.configured', `profile model not found in provider list: ${fullId}`, {
             model,
+            full_id: fullId,
             available: false,
           }),
         )
@@ -399,27 +414,25 @@ export function runDoctor(options: DoctorOptions = {}, agentId?: string): CheckR
     }
   }
 
-  // 16. agent levels with effort
-  for (const [agentId, agentCfg] of Object.entries(config.agents)) {
-    for (const [levelName, level] of Object.entries(agentCfg.levels)) {
-      if (level.effort) {
-        if (agentId === 'opencode-go') {
-          results.push(
-            ok(
-              'agent.level.effort',
-              `opencode-go level "${levelName}" effort "${level.effort}" — effective with cagent run (--variant). Interactive OpenCode sessions do not support effort.`,
-              { agent: agentId, level: levelName, effort: level.effort },
-            ),
-          )
-        } else {
-          results.push(
-            ok(
-              'agent.level.effort',
-              `${agentId} level "${levelName}" effort "${level.effort}" — passed as -c model_reasoning_effort to the CLI.`,
-              { agent: agentId, level: levelName, effort: level.effort },
-            ),
-          )
-        }
+  // 16. profiles with effort
+  for (const [profileName, profile] of Object.entries(profiles)) {
+    if (profile.effort) {
+      if (profile.agent === 'opencode-go') {
+        results.push(
+          ok(
+            'profile.effort',
+            `opencode-go profile "${profileName}" effort "${profile.effort}" — effective with cagent run (--variant). Interactive OpenCode sessions do not support effort.`,
+            { agent: profile.agent, profile: profileName, effort: profile.effort },
+          ),
+        )
+      } else {
+        results.push(
+          ok(
+            'profile.effort',
+            `${profile.agent} profile "${profileName}" effort "${profile.effort}" — passed as -c model_reasoning_effort to the CLI.`,
+            { agent: profile.agent, profile: profileName, effort: profile.effort },
+          ),
+        )
       }
     }
   }
@@ -432,7 +445,6 @@ function parseModelList(stdout: string, provider: string): string[] {
   for (const line of stdout.split('\n')) {
     const trimmed = line.trim()
     if (!trimmed) continue
-    // Accept both full ids and short ids from opencode output
     if (trimmed.includes('/')) {
       models.push(trimmed)
     } else {

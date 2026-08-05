@@ -21,7 +21,6 @@ function createEnvironment(configHome: string): Record<string, string> {
 function configYaml(): string {
   return [
     'default_agent: opencode-go',
-    'default_level: low',
     'default_profile: low',
     'profiles:',
     '  low:',
@@ -31,11 +30,6 @@ function configYaml(): string {
     '  opencode-go:',
     '    bin: echo',
     '    provider: opencode-go',
-    '    levels:',
-    '      low:',
-    '        description: Simple',
-    '        default_model: test-model',
-    '        models: [test-model]',
     'multiplexer:',
     '  default: herdr',
     '  herdr:',

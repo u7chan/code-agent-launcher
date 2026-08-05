@@ -24,9 +24,9 @@ type ValidationHerdrStepRecord = {
   error?: string
 }
 
-type AgentLevelEntry = { expected_model: string }
-type AgentMatrix = Record<string, AgentLevelEntry>
-type Matrix = Record<string, AgentMatrix>
+type AgentProfileEntry = { expected_model: string }
+type AgentProfileMatrix = Record<string, AgentProfileEntry>
+type Matrix = Record<string, AgentProfileMatrix>
 
 export type CommandOutput = { status: number; stdout: string; stderr: string }
 type Status = 'pass' | 'fail'
@@ -47,9 +47,9 @@ export type EvaluationConfig = {
   hidden_checks: { forbidden: string[] }
 }
 
-type LevelResult = {
+type ProfileResult = {
   agent: string
-  level: string
+  profile: string
   expectedModel: string
   dryRun: CommandOutput
   routingStatus: Status
@@ -82,7 +82,7 @@ type HerdrLiveSummary = {
   plan?: {
     pane_count: number
     agent: string
-    level: string
+    profile: string
     expected_model: string
     command_summary: string
     cleanup_policy: 'keep' | 'close'
@@ -157,8 +157,12 @@ export function assertDryRunModel(
 ): boolean {
   const normalized = output.replace(/'/g, '')
   if (agentName === 'codex') return normalized.includes(`codex exec --model ${expectedModel}`)
-  if (agentName === 'opencode-go')
-    return normalized.includes(`opencode run --model ${expectedModel}`)
+  if (agentName === 'opencode-go') {
+    if (normalized.includes(`opencode run --model ${expectedModel}`)) return true
+    const bare = expectedModel.replace(/^opencode-go\//, '')
+    if (bare !== expectedModel && normalized.includes(`opencode run --model ${bare}`)) return true
+    return false
+  }
   return false
 }
 
@@ -203,31 +207,22 @@ export function validateManualAttestation(
   }
 }
 
-function cagentArgs(agentName: string, level: string, prompt: string, live: boolean): string[] {
+function cagentArgs(agentName: string, profile: string, prompt: string, live: boolean): string[] {
   const extras =
     agentName === 'codex'
       ? ['--sandbox', 'read-only', '--skip-git-repo-check', '--ephemeral', prompt]
       : [prompt]
-  return [
-    builtEntryPoint,
-    ...(live ? [] : ['--dry-run']),
-    'run',
-    '--agent',
-    agentName,
-    level,
-    '--',
-    ...extras,
-  ]
+  return [builtEntryPoint, ...(live ? [] : ['--dry-run']), 'run', profile, '--', ...extras]
 }
 
 function runLive(
   agentName: string,
-  level: string,
+  profile: string,
   prompt: string,
 ): { status: Status; exitCode: number; diagnostic?: string } {
   const workspace = mkdtempSync(join(tmpdir(), 'cagent-validation-'))
   try {
-    const result = run('node', cagentArgs(agentName, level, prompt, true), workspace, {
+    const result = run('node', cagentArgs(agentName, profile, prompt, true), workspace, {
       ...process.env,
       CAGENT_CONFIG: configPath,
     })
@@ -506,16 +501,16 @@ function smokeCore(args: string[], reportDir: string): number {
     return 1
   }
   const prompt = readFileSync(promptPath, 'utf8').trim()
-  const results: LevelResult[] = []
+  const results: ProfileResult[] = []
   for (const agentName of agentNames)
-    for (const [level, value] of Object.entries(matrix[agentName])) {
-      const dryRun = run('node', cagentArgs(agentName, level, prompt, false), root, {
+    for (const [profile, value] of Object.entries(matrix[agentName])) {
+      const dryRun = run('node', cagentArgs(agentName, profile, prompt, false), root, {
         ...process.env,
         CAGENT_CONFIG: configPath,
       })
-      const result: LevelResult = {
+      const result: ProfileResult = {
         agent: agentName,
-        level,
+        profile,
         expectedModel: value.expected_model,
         dryRun,
         routingStatus:
@@ -523,7 +518,7 @@ function smokeCore(args: string[], reportDir: string): number {
             ? 'pass'
             : 'fail',
       }
-      if (live) result.live = runLive(agentName, level, prompt)
+      if (live) result.live = runLive(agentName, profile, prompt)
       results.push(result)
     }
   const passed =
@@ -548,11 +543,11 @@ function smokeCore(args: string[], reportDir: string): number {
     `- CLI --help: ${cli.help}`,
     `- CLI --version: ${cli.version}`,
     '',
-    '| Agent | Level | Expected model | Routing | Live run |',
+    '| Agent | Profile | Expected model | Routing | Live run |',
     '| --- | --- | --- | --- | --- |',
     ...results.map(
       (r) =>
-        `| ${r.agent} | ${r.level} | ${r.expectedModel} | ${r.routingStatus} | ${r.live?.status ?? 'not run'} |`,
+        `| ${r.agent} | ${r.profile} | ${r.expectedModel} | ${r.routingStatus} | ${r.live?.status ?? 'not run'} |`,
     ),
     '',
     'Automatic routing is verified at the cagent-to-CLI boundary. Provider-reported model IDs are not collected by this runner.',
@@ -569,7 +564,7 @@ function resolveLiveAuthorization(args: string[]): LiveAuthorization {
 
 function runHerdrLive(
   agent: string,
-  level: string,
+  profile: string,
   prompt: string,
   expectedModel: string,
   cleanup: boolean,
@@ -582,10 +577,9 @@ function runHerdrLive(
   const commandSpec = adapter.buildRunCommand({
     bin: adapter.defaultBin,
     modelId: expectedModel,
-    level,
     cwd,
     extraArgs: [prompt],
-    config: { bin: adapter.defaultBin, provider: agent, levels: {} },
+    config: { bin: adapter.defaultBin, provider: agent },
   })
   const formattedCommand = formatCommandSpec(commandSpec)
   const commandSummary =
@@ -594,7 +588,7 @@ function runHerdrLive(
   const plan = {
     pane_count: 1,
     agent,
-    level,
+    profile,
     expected_model: expectedModel,
     command_summary: commandSummary,
     cleanup_policy: (cleanup ? 'close' : 'keep') as 'keep' | 'close',
@@ -602,7 +596,7 @@ function runHerdrLive(
 
   console.log('## Herdr live plan')
   console.log(`- Agent: ${agent}`)
-  console.log(`- Level: ${level}`)
+  console.log(`- Profile: ${profile}`)
   console.log(`- Expected model: ${expectedModel}`)
   console.log(`- Planned panes: ${plan.pane_count}`)
   console.log(`- Command: ${commandSummary}`)
@@ -683,10 +677,11 @@ function tryCleanup(createdPanes: string[], steps: ValidationHerdrStepRecord[]):
 
 function smokeExtended(args: string[], reportDir: string): number {
   const agent = option(args, '--agent') ?? 'codex'
-  const level = option(args, '--level') ?? 'mid'
-  const expectedModel = loadMatrix()[agent]?.[level]?.expected_model
+  const profile =
+    option(args, '--target') ?? (agent === 'codex' ? 'codex-balanced' : 'opencode-balanced')
+  const expectedModel = loadMatrix()[agent]?.[profile]?.expected_model
   if (!expectedModel) {
-    console.error(`Unknown agent or level: ${agent}:${level}`)
+    console.error(`Unknown agent or profile: ${agent}:${profile}`)
     return 1
   }
   const cli = buildAndCheckCli()
@@ -705,23 +700,14 @@ function smokeExtended(args: string[], reportDir: string): number {
   } else if (!supportsModelListing) {
     modelsStatus = 'skip'
   } else {
-    const models = run(
-      'node',
-      [builtEntryPoint, '--agent', agent, 'models', 'available'],
-      root,
-      env,
-    )
+    const modelsEnv = { ...env, CAGENT_AGENT: agent }
+    const models = run('node', [builtEntryPoint, 'models', 'available'], root, modelsEnv)
     modelsStatus = models.status === 0 ? 'pass' : 'fail'
   }
 
   const muxDryRun =
     cli.status === 'pass'
-      ? run(
-          'node',
-          [builtEntryPoint, '--dry-run', 'mux', 'run', '--agent', agent, level, '--', prompt],
-          root,
-          env,
-        )
+      ? run('node', [builtEntryPoint, '--dry-run', 'mux', 'run', profile, '--', prompt], root, env)
       : doctor
 
   const routing: Status =
@@ -759,7 +745,7 @@ function smokeExtended(args: string[], reportDir: string): number {
       reportDir,
       manifest,
       {
-        automatic_routing: { agent, level, expected_model: expectedModel, status: routing },
+        automatic_routing: { agent, profile, expected_model: expectedModel, status: routing },
         environment_checks: checkStatus,
         manual_attestation: attestation,
         backend_attestation: 'unobservable',
@@ -796,7 +782,7 @@ function smokeExtended(args: string[], reportDir: string): number {
 
   if (liveEnabled) {
     const cleanup = args.includes('--cleanup-created-panes')
-    herdrSummary = runHerdrLive(agent, level, prompt, expectedModel, cleanup)
+    herdrSummary = runHerdrLive(agent, profile, prompt, expectedModel, cleanup)
   }
 
   const checks = {
@@ -834,7 +820,7 @@ function smokeExtended(args: string[], reportDir: string): number {
   }
 
   const scoresData: Record<string, unknown> = {
-    automatic_routing: { agent, level, expected_model: expectedModel, status: routing },
+    automatic_routing: { agent, profile, expected_model: expectedModel, status: routing },
     environment_checks: checks,
     manual_attestation: attestation,
     backend_attestation: 'unobservable',
@@ -884,15 +870,15 @@ function smokeExtended(args: string[], reportDir: string): number {
 }
 
 function smoke(args: string[]): number {
-  const profile = option(args, '--profile') ?? 'core'
+  const mode = option(args, '--profile') ?? 'core'
   const reportDir = option(args, '--report-dir') ?? join(validationRoot, '.artifacts', runId())
   const exitCode =
-    profile === 'core'
+    mode === 'core'
       ? smokeCore(args, reportDir)
-      : profile === 'extended'
+      : mode === 'extended'
         ? smokeExtended(args, reportDir)
         : 1
-  if (profile !== 'core' && profile !== 'extended') console.error(`Unsupported profile: ${profile}`)
+  if (mode !== 'core' && mode !== 'extended') console.error(`Unsupported profile: ${mode}`)
   console.log(`Validation report: ${reportDir}`)
   return exitCode
 }

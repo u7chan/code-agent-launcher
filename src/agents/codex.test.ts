@@ -3,10 +3,9 @@ import { codexAdapter, serializeTomlString } from './codex.js'
 
 const baseContext = {
   bin: 'codex',
-  level: 'high',
   cwd: '/tmp',
   extraArgs: ['hello'],
-  config: { bin: 'codex', provider: 'codex', model_id_prefix: false, levels: {} },
+  config: { bin: 'codex', provider: 'codex', model_id_prefix: false },
 }
 
 describe('serializeTomlString', () => {

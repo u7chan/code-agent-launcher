@@ -79,7 +79,6 @@ describe('run JSON output', () => {
     writeFileSync(
       file,
       `default_agent: codex
-default_level: mid
 default_profile: mid
 profiles:
   mid: { agent: codex, model: gpt-5 }
@@ -88,11 +87,6 @@ agents:
     bin: node
     provider: codex
     model_id_prefix: false
-    levels:
-      mid:
-        description: Normal
-        default_model: gpt-5
-        models: [gpt-5]
 multiplexer:
   default: herdr
   herdr: { enabled: true }
@@ -137,7 +131,6 @@ multiplexer:
     writeFileSync(
       file,
       `default_agent: codex
-default_level: mid
 default_profile: mid
 profiles:
   mid: { agent: codex, model: gpt-5 }
@@ -146,11 +139,6 @@ agents:
     bin: node
     provider: codex
     model_id_prefix: false
-    levels:
-      mid:
-        description: Normal
-        default_model: gpt-5
-        models: [gpt-5]
 multiplexer:
   default: herdr
   herdr: { enabled: true }
@@ -223,7 +211,6 @@ describe('run config validation', () => {
     writeFileSync(
       file,
       `default_agent: opencode-go
-default_level: mid
 default_profile: mid
 profiles:
   mid: { agent: opencode-go, model: deepseek-v4-pro }
@@ -231,11 +218,6 @@ agents:
   opencode-go:
     bin: opencode
     provider: ""
-    levels:
-      mid:
-        description: Normal
-        default_model: deepseek-v4-pro
-        models: [deepseek-v4-pro]
 multiplexer:
   default: herdr
   herdr: { enabled: true }
