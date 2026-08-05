@@ -1,5 +1,5 @@
 default_agent: codex
-default_profile: balanced
+default_profile: codex-balanced
 
 agents:
   codex:

@@ -157,8 +157,12 @@ export function assertDryRunModel(
 ): boolean {
   const normalized = output.replace(/'/g, '')
   if (agentName === 'codex') return normalized.includes(`codex exec --model ${expectedModel}`)
-  if (agentName === 'opencode-go')
-    return normalized.includes(`opencode run --model ${expectedModel}`)
+  if (agentName === 'opencode-go') {
+    if (normalized.includes(`opencode run --model ${expectedModel}`)) return true
+    const bare = expectedModel.replace(/^opencode-go\//, '')
+    if (bare !== expectedModel && normalized.includes(`opencode run --model ${bare}`)) return true
+    return false
+  }
   return false
 }
 
@@ -673,7 +677,8 @@ function tryCleanup(createdPanes: string[], steps: ValidationHerdrStepRecord[]):
 
 function smokeExtended(args: string[], reportDir: string): number {
   const agent = option(args, '--agent') ?? 'codex'
-  const profile = option(args, '--profile') ?? 'codex-balanced'
+  const profile =
+    option(args, '--target') ?? (agent === 'codex' ? 'codex-balanced' : 'opencode-balanced')
   const expectedModel = loadMatrix()[agent]?.[profile]?.expected_model
   if (!expectedModel) {
     console.error(`Unknown agent or profile: ${agent}:${profile}`)
@@ -695,7 +700,8 @@ function smokeExtended(args: string[], reportDir: string): number {
   } else if (!supportsModelListing) {
     modelsStatus = 'skip'
   } else {
-    const models = run('node', [builtEntryPoint, 'models', 'available'], root, env)
+    const modelsEnv = { ...env, CAGENT_AGENT: agent }
+    const models = run('node', [builtEntryPoint, 'models', 'available'], root, modelsEnv)
     modelsStatus = models.status === 0 ? 'pass' : 'fail'
   }
 
@@ -864,15 +870,15 @@ function smokeExtended(args: string[], reportDir: string): number {
 }
 
 function smoke(args: string[]): number {
-  const profile = option(args, '--profile') ?? 'core'
+  const mode = option(args, '--profile') ?? 'core'
   const reportDir = option(args, '--report-dir') ?? join(validationRoot, '.artifacts', runId())
   const exitCode =
-    profile === 'core'
+    mode === 'core'
       ? smokeCore(args, reportDir)
-      : profile === 'extended'
+      : mode === 'extended'
         ? smokeExtended(args, reportDir)
         : 1
-  if (profile !== 'core' && profile !== 'extended') console.error(`Unsupported profile: ${profile}`)
+  if (mode !== 'core' && mode !== 'extended') console.error(`Unsupported profile: ${mode}`)
   console.log(`Validation report: ${reportDir}`)
   return exitCode
 }
