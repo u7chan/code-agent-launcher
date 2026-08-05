@@ -482,15 +482,15 @@ describe('profile validation', () => {
     }
   })
 
-  it('rejects profiles without a default_profile', () => {
+  it('accepts profiles without a default_profile', () => {
     const file = profileFile(
       'profiles:\n  fast:\n    agent: opencode-go\n    model: deepseek-v4-flash\n',
     )
     try {
-      expect(() => loadConfig(file)).toThrow(ConfigError)
-      expect(() => loadConfig(file)).toThrow(
-        'default_profile is required when profiles are defined',
-      )
+      const config = loadConfig(file)
+      expect(config.profiles).toBeDefined()
+      expect(config.profiles?.fast).toBeDefined()
+      expect(config.default_profile).toBeUndefined()
     } finally {
       rmSync(file, { force: true })
     }

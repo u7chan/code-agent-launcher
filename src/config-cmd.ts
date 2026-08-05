@@ -13,18 +13,6 @@ import { assertTty } from './tty.js'
 
 export const DEFAULT_CONFIG = `default_agent: codex
 default_level: mid
-default_profile: balanced
-profiles:
-  fast:
-    agent: codex
-    model: gpt-5.6-luna
-  balanced:
-    agent: codex
-    model: gpt-5.6-terra
-  frontier:
-    agent: opencode-go
-    model: kimi-k2.7-code
-    effort: xhigh
 agents:
   codex:
     bin: codex

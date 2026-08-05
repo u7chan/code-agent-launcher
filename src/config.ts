@@ -203,8 +203,6 @@ function normalize(root: Record<string, unknown>): Config {
       : undefined
   if (defaultProfile !== undefined && !parsedProfiles?.[defaultProfile])
     throw new ConfigError(`default_profile "${defaultProfile}" is not defined in profiles`)
-  if (parsedProfiles && Object.keys(parsedProfiles).length > 0 && defaultProfile === undefined)
-    throw new ConfigError('default_profile is required when profiles are defined')
 
   return {
     default_agent: defaultAgent,
