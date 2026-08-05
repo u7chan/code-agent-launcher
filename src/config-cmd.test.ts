@@ -15,17 +15,15 @@ import { createConfigCommand, DEFAULT_CONFIG } from './config-cmd.js'
 import { createMainCommand } from './main.js'
 
 const validFixture = `default_agent: opencode-go
-default_level: mid
+default_profile: balanced
 agents:
   opencode-go:
     bin: opencode
     provider: opencode-go
-    levels:
-      mid:
-        description: Normal
-        default_model: deepseek-v4-pro
-        models:
-          - deepseek-v4-pro
+profiles:
+  balanced:
+    agent: opencode-go
+    model: deepseek-v4-pro
 multiplexer:
   default: herdr
   herdr:

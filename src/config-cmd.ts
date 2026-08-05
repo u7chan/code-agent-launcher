@@ -12,50 +12,44 @@ import { isJsonMode, outputJsonSuccess } from './json-output.js'
 import { assertTty } from './tty.js'
 
 export const DEFAULT_CONFIG = `default_agent: codex
-default_level: mid
+default_profile: balanced
 agents:
   codex:
     bin: codex
     provider: codex
     model_id_prefix: false
-    levels:
-      low:
-        description: Fast and affordable tasks
-        default_model: gpt-5.6-luna
-        models: [gpt-5.6-luna]
-      mid:
-        description: Balanced everyday tasks
-        default_model: gpt-5.6-terra
-        models: [gpt-5.6-terra]
-      high:
-        description: Frontier agentic coding tasks
-        default_model: gpt-5.6-sol
-        models: [gpt-5.6-sol]
   opencode-go:
     bin: opencode
     provider: opencode-go
     model_id_prefix: true
-    levels:
-      low:
-        description: Fast and affordable tasks
-        default_model: deepseek-v4-flash
-        models: [deepseek-v4-flash]
-      mid:
-        description: Balanced everyday tasks
-        default_model: deepseek-v4-pro
-        models: [deepseek-v4-pro]
-      high:
-        description: Frontier agentic coding tasks
-        default_model: kimi-k2.7-code
-        models: [kimi-k2.7-code]
+profiles:
+  fast:
+    agent: codex
+    model: gpt-5.6-luna
+  balanced:
+    agent: codex
+    model: gpt-5.6-terra
+  frontier:
+    agent: codex
+    model: gpt-5.6-sol
+    effort: high
+  opencode-fast:
+    agent: opencode-go
+    model: deepseek-v4-flash
+  opencode-balanced:
+    agent: opencode-go
+    model: deepseek-v4-pro
+  opencode-frontier:
+    agent: opencode-go
+    model: kimi-k2.7-code
 
 multiplexer:
   default: herdr
 
   herdr:
     enabled: true
-    start_command_template: "cagent {level}"
-    run_command_template: "cagent run {level} -- {prompt}"
+    start_command_template: "cagent --profile {profile}"
+    run_command_template: "cagent run --profile {profile} -- {prompt}"
 
   tmux:
     enabled: false

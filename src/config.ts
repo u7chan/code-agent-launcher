@@ -3,18 +3,11 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import YAML from 'yaml'
 
-export interface LevelConfig {
-  description: string
-  default_model: string
-  models: string[]
-  effort?: string
-}
 export interface AgentConfig {
   bin: string
   provider: string
   /** Set false for CLIs, such as Codex, that expect raw model IDs. */
   model_id_prefix?: boolean
-  levels: Record<string, LevelConfig>
 }
 export interface MultiplexerAdapter {
   enabled: boolean
@@ -46,7 +39,6 @@ export interface ResolvedProfile {
 
 export interface Config {
   default_agent: string
-  default_level: string
   default_profile?: string
   agents: Record<string, AgentConfig>
   profiles?: Record<string, LaunchProfile>
@@ -112,21 +104,6 @@ function parseEffort(kind: string, name: string, effort: unknown): string | unde
   throw new ConfigError(`${kind} "${name}".effort must be a string`)
 }
 
-function levels(raw: unknown): Record<string, LevelConfig> {
-  const out: Record<string, LevelConfig> = {}
-  for (const [name, value] of Object.entries(record(raw, 'levels must be an object'))) {
-    const level = record(value, `level "${name}" must be an object`)
-    if (!Array.isArray(level.models) || !level.models.every((x) => typeof x === 'string'))
-      throw new ConfigError(`level "${name}".models must be an array of strings`)
-    out[name] = {
-      description: string(level.description, `level "${name}".description must be a string`),
-      default_model: string(level.default_model, `level "${name}".default_model must be a string`),
-      models: level.models as string[],
-      effort: parseEffort('level', name, level.effort),
-    }
-  }
-  return out
-}
 function parseProfiles(
   raw: unknown,
   agents: Record<string, AgentConfig>,
@@ -165,12 +142,38 @@ function mux(raw: unknown): MultiplexerConfig {
     }
   return out
 }
-function normalize(root: Record<string, unknown>): Config {
-  if ('opencode_bin' in root || 'levels' in root) {
+function rejectLegacyConfig(root: Record<string, unknown>): void {
+  const legacyRootKeys = [
+    'opencode_bin',
+    'level',
+    'levels',
+    'default_level',
+    'default_model',
+    'models',
+  ]
+  if (legacyRootKeys.some((key) => key in root)) {
     throw new ConfigError(
       'legacy config format is unsupported; define agents and default_agent instead',
     )
   }
+
+  if (!root.agents || typeof root.agents !== 'object' || Array.isArray(root.agents)) return
+
+  for (const raw of Object.values(root.agents)) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+    const agent = raw as Record<string, unknown>
+    if (
+      ['level', 'levels', 'default_level', 'default_model', 'models'].some((key) => key in agent)
+    ) {
+      throw new ConfigError(
+        'legacy config format is unsupported; define agents and default_agent instead',
+      )
+    }
+  }
+}
+
+function normalize(root: Record<string, unknown>): Config {
+  rejectLegacyConfig(root)
 
   const multiplexer = mux(root.multiplexer)
 
@@ -181,19 +184,12 @@ function normalize(root: Record<string, unknown>): Config {
       bin: string(agent.bin, `agent "${id}".bin must be a string`),
       provider: requiredNonEmptyString(agent.provider, `agent "${id}".provider`),
       model_id_prefix: agent.model_id_prefix !== false,
-      levels: levels(agent.levels),
     }
   }
 
   const defaultAgent = string(root.default_agent, 'default_agent must be a string')
   const active = Object.hasOwn(agents, defaultAgent) ? agents[defaultAgent] : undefined
   if (!active) throw new ConfigError(`default_agent "${defaultAgent}" is not defined in agents`)
-
-  const defaultLevel = string(root.default_level, 'default_level must be a string')
-  if (!active.levels[defaultLevel])
-    throw new ConfigError(
-      `default_level "${defaultLevel}" is not defined in levels for agent "${defaultAgent}"`,
-    )
 
   const parsedProfiles =
     root.profiles !== undefined ? parseProfiles(root.profiles, agents) : undefined
@@ -206,7 +202,6 @@ function normalize(root: Record<string, unknown>): Config {
 
   return {
     default_agent: defaultAgent,
-    default_level: defaultLevel,
     default_profile: defaultProfile,
     agents,
     profiles: parsedProfiles,

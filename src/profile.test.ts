@@ -5,31 +5,16 @@ import { ProfileError, resolveProfile } from './profile.js'
 function makeConfig(): Config {
   return {
     default_agent: 'opencode-go',
-    default_level: 'mid',
     default_profile: 'balanced',
     agents: {
       'opencode-go': {
         bin: 'opencode',
         provider: 'opencode-go',
-        levels: {
-          mid: {
-            description: 'Normal tasks',
-            default_model: 'deepseek-v4-pro',
-            models: ['deepseek-v4-pro'],
-          },
-        },
       },
       codex: {
         bin: 'codex',
         provider: 'codex',
         model_id_prefix: false,
-        levels: {
-          high: {
-            description: 'Complex tasks',
-            default_model: 'gpt-5.6-sol',
-            models: ['gpt-5.6-sol'],
-          },
-        },
       },
     },
     profiles: {

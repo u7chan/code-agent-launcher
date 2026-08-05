@@ -15,7 +15,6 @@ export function formatConfiguredModels(config: Config, agentFilter?: string): st
   let first = true
 
   for (const agentId of agentIds) {
-    const agent = config.agents[agentId]
     const isDefault = agentId === config.default_agent
     const label = `${agentId}${isDefault ? ' (default)' : ''}`
 
@@ -23,21 +22,25 @@ export function formatConfiguredModels(config: Config, agentFilter?: string): st
     first = false
 
     lines.push(`Agent: ${label}`)
-    lines.push(`Default level: ${config.default_level}`)
-
-    const levelWidth = Math.max(5, ...Object.keys(agent.levels).map((k) => k.length))
-    const modelWidth = Math.max(
-      13,
-      ...Object.values(agent.levels).map((l) => l.default_model.length),
+    lines.push(`Default profile: ${config.default_profile ?? '(none defined)'}`)
+    const profiles = Object.entries(config.profiles ?? {}).filter(
+      ([, profile]) => profile.agent === agentId,
     )
-
     lines.push('')
+    if (profiles.length === 0) {
+      lines.push('Profiles: (none defined)')
+      continue
+    }
+
+    const profileWidth = Math.max(7, ...profiles.map(([name]) => name.length))
+    const modelWidth = Math.max(5, ...profiles.map(([, profile]) => profile.model.length))
+    const effortWidth = Math.max(6, ...profiles.map(([, profile]) => profile.effort?.length ?? 0))
     lines.push(
-      `${'LEVEL'.padEnd(levelWidth + 1)} ${'DEFAULT MODEL'.padEnd(modelWidth + 1)} ALLOWED MODELS`,
+      `${'PROFILE'.padEnd(profileWidth + 1)} ${'MODEL'.padEnd(modelWidth + 1)} ${'EFFORT'.padEnd(effortWidth + 1)}`,
     )
-    for (const [levelName, level] of Object.entries(agent.levels)) {
+    for (const [profileName, profile] of profiles) {
       lines.push(
-        `${levelName.padEnd(levelWidth + 1)} ${level.default_model.padEnd(modelWidth + 1)} ${level.models.join(', ')}`,
+        `${profileName.padEnd(profileWidth + 1)} ${profile.model.padEnd(modelWidth + 1)} ${(profile.effort ?? '-').padEnd(effortWidth + 1)}`,
       )
     }
   }
@@ -89,29 +92,23 @@ export function createModelsCommand(): Command {
       }
 
       if (json) {
-        const agents = Object.entries(config.agents).map(([id, agent]) => {
-          const agentWithDefaultLevel = agent as typeof agent & { default_level?: string }
-          return {
-            id,
-            provider: agent.provider,
-            bin: agent.bin,
-            model_id_prefix: agent.model_id_prefix ?? true,
-            default_level: agentWithDefaultLevel.default_level ?? null,
-            levels: Object.entries(agent.levels).map(([name, level]) => ({
-              name,
-              description: level.description,
-              default_model: level.default_model,
-              models: level.models,
-              effort: level.effort,
-            })),
-          }
-        })
+        const agents = Object.entries(config.agents).map(([id, agent]) => ({
+          id,
+          provider: agent.provider,
+          bin: agent.bin,
+          model_id_prefix: agent.model_id_prefix ?? true,
+        }))
+        const profiles = Object.entries(config.profiles ?? {}).map(([name, profile]) => ({
+          name,
+          ...profile,
+        }))
         outputJsonSuccess(
           'models',
           {
             default_agent: config.default_agent,
-            default_level: config.default_level,
+            default_profile: config.default_profile ?? null,
             agents,
+            profiles,
           },
           warnings,
         )
