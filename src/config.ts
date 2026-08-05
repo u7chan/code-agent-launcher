@@ -35,12 +35,12 @@ export interface LaunchProfile {
 }
 
 export interface ResolvedProfile {
-  profile: string
+  name: string
   source: 'cli' | 'env' | 'default'
   agent: string
   model: string
   effort?: string
-  modelSource?: 'cli' | 'env' | 'profile'
+  modelSource: 'cli' | 'env' | 'profile'
   effortSource?: 'cli' | 'env' | 'profile'
 }
 
@@ -136,7 +136,7 @@ function parseProfiles(
     if (!name) throw new ConfigError('profile name must not be empty')
     const profile = record(value, `profile "${name}" must be an object`)
     const agent = requiredNonEmptyString(profile.agent, `profile "${name}".agent`)
-    if (!agents[agent])
+    if (!Object.hasOwn(agents, agent))
       throw new ConfigError(`profile "${name}".agent "${agent}" is not defined in agents`)
     out[name] = {
       agent,
@@ -186,7 +186,7 @@ function normalize(root: Record<string, unknown>): Config {
   }
 
   const defaultAgent = string(root.default_agent, 'default_agent must be a string')
-  const active = agents[defaultAgent]
+  const active = Object.hasOwn(agents, defaultAgent) ? agents[defaultAgent] : undefined
   if (!active) throw new ConfigError(`default_agent "${defaultAgent}" is not defined in agents`)
 
   const defaultLevel = string(root.default_level, 'default_level must be a string')
@@ -201,7 +201,7 @@ function normalize(root: Record<string, unknown>): Config {
     root.default_profile !== undefined
       ? requiredNonEmptyString(root.default_profile, 'default_profile')
       : undefined
-  if (defaultProfile !== undefined && !parsedProfiles?.[defaultProfile])
+  if (defaultProfile !== undefined && !Object.hasOwn(parsedProfiles ?? {}, defaultProfile))
     throw new ConfigError(`default_profile "${defaultProfile}" is not defined in profiles`)
 
   return {
@@ -233,7 +233,7 @@ export function loadConfig(path?: string): Config {
   }
 }
 export function getAgent(config: Config, id: string): AgentConfig {
-  const agent = config.agents[id]
+  const agent = Object.hasOwn(config.agents, id) ? config.agents[id] : undefined
   if (agent) return agent
   throw new ConfigError(
     `unknown agent: ${id}\n\nAvailable agents:\n${Object.keys(config.agents)

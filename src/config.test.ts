@@ -95,6 +95,30 @@ multiplexer:
     expect(() => loadConfig()).toThrow('default_agent')
   })
 
+  it('throws ConfigError for default_agent that is an inherited Object.prototype name', () => {
+    const configFile = join(tmpDir, 'config.yaml')
+    writeFileSync(
+      configFile,
+      `default_agent: toString
+default_level: mid
+agents:
+  opencode-go:
+    bin: opencode
+    provider: opencode-go
+    levels:
+      mid:
+        description: Normal
+        default_model: deepseek-v4-pro
+        models: [deepseek-v4-pro]
+multiplexer:
+  default: herdr
+  herdr: { enabled: true }
+`,
+    )
+    process.env.CAGENT_CONFIG = configFile
+    expect(() => loadConfig()).toThrow('default_agent "toString" is not defined in agents')
+  })
+
   it('throws ConfigError for missing default_level in agent levels', () => {
     const configFile = join(tmpDir, 'config.yaml')
     writeFileSync(
@@ -241,6 +265,12 @@ describe('getAgent', () => {
     const config = makeConfig()
     expect(() => getAgent(config, 'unknown')).toThrow('unknown agent')
     expect(() => getAgent(config, 'unknown')).toThrow('Available agents')
+  })
+
+  it('throws for an inherited Object.prototype name as agent', () => {
+    const config = makeConfig()
+    expect(() => getAgent(config, 'toString')).toThrow('unknown agent')
+    expect(() => getAgent(config, 'toString')).toThrow('Available agents')
   })
 })
 
@@ -505,6 +535,36 @@ describe('profile validation', () => {
       expect(() => loadConfig(file)).toThrow(ConfigError)
       expect(() => loadConfig(file)).toThrow(
         'profile "fast".agent "unknown-agent" is not defined in agents',
+      )
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects a profile whose agent is an inherited Object.prototype name', () => {
+    const file = profileFile(
+      'profiles:\n  fast:\n    agent: toString\n    model: deepseek-v4-flash\n',
+      'fast',
+    )
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow(
+        'profile "fast".agent "toString" is not defined in agents',
+      )
+    } finally {
+      rmSync(file, { force: true })
+    }
+  })
+
+  it('rejects a default_profile that is an inherited Object.prototype name', () => {
+    const file = profileFile(
+      'profiles:\n  fast:\n    agent: opencode-go\n    model: deepseek-v4-flash\n',
+      'toString',
+    )
+    try {
+      expect(() => loadConfig(file)).toThrow(ConfigError)
+      expect(() => loadConfig(file)).toThrow(
+        'default_profile "toString" is not defined in profiles',
       )
     } finally {
       rmSync(file, { force: true })

@@ -20,6 +20,12 @@ function nonEmpty(value: string | undefined): string | undefined {
   return value !== undefined && value !== '' ? value : undefined
 }
 
+function cliValue(value: string | undefined, flag: string): string | undefined {
+  if (value === undefined) return undefined
+  if (value === '') throw new ProfileError(`${flag} must not be empty`)
+  return value
+}
+
 function availableText(config: Config): string {
   const names = Object.keys(config.profiles ?? {})
   const listed = names.length > 0 ? names.map((name) => `  ${name}`).join('\n') : '  (none defined)'
@@ -27,7 +33,7 @@ function availableText(config: Config): string {
 }
 
 export function resolveProfile(config: Config, options: ResolveProfileOptions): ResolvedProfile {
-  const cliProfile = nonEmpty(options.cliProfile)
+  const cliProfile = cliValue(options.cliProfile, '--profile')
   const envProfile = nonEmpty(options.envProfile)
   const profileName = cliProfile ?? envProfile ?? config.default_profile
 
@@ -35,14 +41,18 @@ export function resolveProfile(config: Config, options: ResolveProfileOptions): 
     throw new ProfileError(`no launch profile selected\n\n${availableText(config)}`)
   }
 
-  const profile = config.profiles?.[profileName]
+  const profiles = config.profiles
+  const profile =
+    profiles !== undefined && Object.hasOwn(profiles, profileName)
+      ? profiles[profileName]
+      : undefined
   if (!profile) {
     throw new ProfileError(`unknown profile: ${profileName}\n\n${availableText(config)}`)
   }
 
-  const cliModel = nonEmpty(options.cliModel)
+  const cliModel = cliValue(options.cliModel, '--model')
   const envModel = nonEmpty(options.envModel)
-  const cliEffort = nonEmpty(options.cliEffort)
+  const cliEffort = cliValue(options.cliEffort, '--effort')
   const envEffort = nonEmpty(options.envEffort)
 
   const model = cliModel ?? envModel ?? profile.model
@@ -59,7 +69,7 @@ export function resolveProfile(config: Config, options: ResolveProfileOptions): 
           : undefined
 
   return {
-    profile: profileName,
+    name: profileName,
     source: cliProfile !== undefined ? 'cli' : envProfile !== undefined ? 'env' : 'default',
     agent: profile.agent,
     model,

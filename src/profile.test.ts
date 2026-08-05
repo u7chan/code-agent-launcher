@@ -48,7 +48,7 @@ describe('resolveProfile', () => {
   it('uses default_profile when nothing is specified', () => {
     const result = resolveProfile(makeConfig(), {})
     expect(result).toEqual({
-      profile: 'balanced',
+      name: 'balanced',
       source: 'default',
       agent: 'opencode-go',
       model: 'deepseek-v4-pro',
@@ -58,7 +58,7 @@ describe('resolveProfile', () => {
 
   it('resolves a profile that spans a different agent', () => {
     const result = resolveProfile(makeConfig(), { cliProfile: 'frontier' })
-    expect(result.profile).toBe('frontier')
+    expect(result.name).toBe('frontier')
     expect(result.agent).toBe('codex')
     expect(result.model).toBe('gpt-5.6-sol')
     expect(result.effort).toBe('xhigh')
@@ -70,14 +70,14 @@ describe('resolveProfile', () => {
       cliProfile: 'fast',
       envProfile: 'frontier',
     })
-    expect(result.profile).toBe('fast')
+    expect(result.name).toBe('fast')
     expect(result.source).toBe('cli')
     expect(result.agent).toBe('opencode-go')
   })
 
   it('falls back to env profile over default_profile', () => {
     const result = resolveProfile(makeConfig(), { envProfile: 'frontier' })
-    expect(result.profile).toBe('frontier')
+    expect(result.name).toBe('frontier')
     expect(result.source).toBe('env')
     expect(result.agent).toBe('codex')
   })
@@ -163,20 +163,45 @@ describe('resolveProfile', () => {
     expect(result.effortSource).toBeUndefined()
   })
 
-  it('treats empty string overrides as unset', () => {
+  it('rejects an empty CLI profile', () => {
+    expect(() => resolveProfile(makeConfig(), { cliProfile: '' })).toThrow(ProfileError)
+    expect(() => resolveProfile(makeConfig(), { cliProfile: '' })).toThrow(
+      '--profile must not be empty',
+    )
+  })
+
+  it('rejects an empty CLI model', () => {
+    expect(() => resolveProfile(makeConfig(), { cliModel: '' })).toThrow(ProfileError)
+    expect(() => resolveProfile(makeConfig(), { cliModel: '' })).toThrow(
+      '--model must not be empty',
+    )
+  })
+
+  it('rejects an empty CLI effort', () => {
+    expect(() => resolveProfile(makeConfig(), { cliEffort: '' })).toThrow(ProfileError)
+    expect(() => resolveProfile(makeConfig(), { cliEffort: '' })).toThrow(
+      '--effort must not be empty',
+    )
+  })
+
+  it('ignores empty env overrides', () => {
     const result = resolveProfile(makeConfig(), {
-      cliProfile: '',
       envProfile: '',
-      cliModel: '',
       envModel: '',
-      cliEffort: '',
       envEffort: '',
     })
-    expect(result.profile).toBe('balanced')
+    expect(result.name).toBe('balanced')
     expect(result.source).toBe('default')
     expect(result.model).toBe('deepseek-v4-pro')
     expect(result.modelSource).toBe('profile')
     expect(result.effort).toBeUndefined()
     expect(result.effortSource).toBeUndefined()
+  })
+
+  it('rejects inherited Object.prototype names as profiles', () => {
+    expect(() => resolveProfile(makeConfig(), { cliProfile: 'toString' })).toThrow(ProfileError)
+    expect(() => resolveProfile(makeConfig(), { cliProfile: 'toString' })).toThrow(
+      'unknown profile: toString',
+    )
   })
 })
