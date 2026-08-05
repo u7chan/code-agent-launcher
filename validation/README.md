@@ -1,8 +1,8 @@
 # ローカル検証
 
-CodexとOpenCode Goのモデルルーティングスモークを実行します。ここで指定する
-`--profile core` / `--profile extended` はvalidation runnerの実行モードです。cagentの
-Launch Profileとは別に、検証の範囲を表します。
+CodexとOpenCode Goのモデルルーティング用smoke testを実行します。ここで指定する
+`--profile core` / `--profile extended` はvalidation runnerの実行モードで、cagentの
+Launch Profileとは別に検証範囲を表します。
 
 ```bash
 # buildとLaunch Profileごとのmodel解決だけを確認する（外部CLI起動なし）
@@ -16,7 +16,7 @@ bun run validate smoke --profile core --agent opencode-go
 bun run validate smoke --profile core --live
 ```
 
-## Launch Profileとmodelの対応
+## Launch Profileとmodelの対応関係
 
 ルーティングmatrixは `validation/config/matrix.yaml` で管理します。Profile名は任意の
 文字列ですが、検証用設定ではagentごとに次の名前を使います。
@@ -30,17 +30,17 @@ bun run validate smoke --profile core --live
 | opencode-go | opencode-balanced |
 | opencode-go | opencode-frontier |
 
-期待モデルは `validation/config/matrix.yaml` の各Launch Profileに対応する
-`expected_model`を正本として参照してください。
+期待するモデルは、`validation/config/matrix.yaml` の各Launch Profileに対応する
+`expected_model`を正として確認してください。
 
-レポートは既定で `validation/.artifacts/` に生成され、Git管理されません。プロバイダー
-応答が示す実モデルIDは取得しないため、レポートでは
+レポートは既定で `validation/.artifacts/` に生成され、Gitでは管理しません。プロバイダーの
+応答から実際のモデルIDを取得しないため、レポートでは
 `backend_attestation: unobservable` として明示します。
 
 ## Herdr extended smoke
 
-`extended` はdoctor、models、mux dry-run、attestation検証を非破壊で実行します。既定では
-実Herdrを起動せず、`herdr pane split/run`を呼びません。既定の対象は
+`extended`ではdoctor、models、mux dry-run、attestation検証を非破壊で実行します。既定では
+実際のHerdrを起動せず、`herdr pane split/run`を呼びません。既定の対象は
 `codex:codex-balanced`です。
 
 ```bash
@@ -53,7 +53,7 @@ bun run validate smoke --profile extended \
   --attestation /absolute/path/to/attestation.yaml
 ```
 
-実Herdrの起動には、`--live`と`--confirm-herdr-side-effects`の両方が必須です。片方だけ
+実際のHerdrを起動するには、`--live`と`--confirm-herdr-side-effects`の両方が必須です。片方だけ
 では起動せず、失敗理由をレポートします。
 
 ```bash
@@ -63,7 +63,7 @@ bun run validate smoke --profile extended \
   --live --confirm-herdr-side-effects
 ```
 
-attestationの例。プレースホルダーは、対象Launch Profileに対応する
+attestationファイルの例です。プレースホルダーは、対象Launch Profileに対応する
 `validation/config/matrix.yaml` の `expected_model` の値に置き換えてください。
 
 ```yaml
@@ -78,35 +78,35 @@ manual_attestation:
 
 ### 実Herdr起動の流れ
 
-`--live --confirm-herdr-side-effects`を指定すると、以下の流れで実行します。
+`--live --confirm-herdr-side-effects`を指定すると、次の流れで実行します。
 
-1. 実行前に予定pane数、agent、Launch Profile、expected model、コマンド概要、保持/cleanup方針を表示
+1. 実行前に作成予定のpane数、agent、Launch Profile、expected model、コマンド概要、保持・cleanup方針を表示
 2. `herdr pane current`で現在paneを検出
 3. `herdr pane split`で新paneを作成（作成直後からpane IDを追跡）
 4. `herdr pane run`でコマンドを実行
-5. 既定ではpaneを**保持**。`--cleanup-created-panes`指定時のみ今回作成したpaneをclose
+5. 既定ではpaneを**保持**し、`--cleanup-created-panes`指定時だけ今回作成したpaneをclose
 
-split/run/closeの各ステップの成否、JSONパースエラー、事前チェック失敗は
+split/run/closeの各ステップの成功・失敗、JSONパースエラー、事前チェックの失敗は
 `scores.json`の`herdr_live.steps`に構造化して記録されます。cleanupに失敗したpaneはIDを
-保持してfail報告し、無断でcloseしません。
+記録したままfailとして報告し、無断でcloseしません。
 
 `method`、確認者、時刻、model、`status: pass`は必須です。expected/observed modelは対象の
-routingと一致する必要があります。attestationがない・不正な場合もレポートを残して失敗
+routingと一致する必要があります。attestationがない場合や不正な場合もレポートを残して失敗
 します。生成物、スクリーンショット、生ログはGit管理しません。
 
 extendedの`scores.json`は`automatic_routing`、`manual_attestation`、`herdr_live`
 （live時のみ）、`backend_attestation`を別フィールドで記録します。
 
-## 候補modelの最小品質評価
+## 候補modelの最小限の品質評価
 
-routing smokeとは別に、候補model評価用の `low` / `mid` / `high` 3つの固定fixtureを実行できます。通常実行は
-予定表示と定型成果物の生成だけで、modelは呼び出しません。
+routing smokeとは別に、候補modelを評価する `low` / `mid` / `high` 3つの固定fixtureを実行できます。
+通常実行では、予定の表示と定型成果物の生成だけを行い、modelは呼び出しません。
 
 ```bash
 bun run validate evaluate --candidate codex/<candidate-model-id>
 ```
 
-表示される候補・baseline・fixture・各3試行・予定呼び出し数を確認したうえで、外部CLIを
+表示された候補・baseline・fixture・各3試行・予定呼び出し数を確認したうえで、外部CLIを
 明示的に指定し、実行を二重に承認してください。
 
 ```bash
@@ -114,11 +114,11 @@ CAGENT_EVALUATE_COMMAND=/absolute/path/to/evaluator \
   bun run validate evaluate --candidate codex/<candidate-model-id> --execute --confirm-live
 ```
 
-評価CLIは `--model <model> --case <fixture>` を受け取り、標準出力へ回答を返します。
-candidateとbaselineを各fixture・試行ごとに交互実行します。各fixtureでcandidateが3回中
+評価CLIには `--model <model> --case <fixture>` を渡し、標準出力へ回答を返します。
+candidateとbaselineを、fixture・試行ごとに交互に実行します。各fixtureでcandidateが3回中
 2回以上成功し、重大違反が0件ならpassです。timeout、429、5xx、通信断は1回だけ再試行し、
 継続した場合は`inconclusive`とします。
 
-生成される`report.md`、`manifest.yaml`、`scores.json`と`validation/.artifacts/index.md`は
-すべて`validation/.artifacts/`配下です。生ログ、model出力、一時workspaceは保存・Git管理
-しません。
+生成される`report.md`、`manifest.yaml`、`scores.json`、`validation/.artifacts/index.md`は
+すべて`validation/.artifacts/`配下にあります。生ログ、model出力、一時workspaceは保存せず、Gitでも
+管理しません。
