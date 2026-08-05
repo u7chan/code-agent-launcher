@@ -10,7 +10,7 @@ import {
   resolveConfigPath,
 } from '../config.js'
 import { isJsonMode, outputJsonFailure, outputJsonSuccess } from '../json-output.js'
-import { ProfileError, resolveProfile } from '../profile.js'
+import { formatResolvedProfileLines, ProfileError, resolveProfile } from '../profile.js'
 import { executeHerdrRun, executeHerdrStart, type HerdrContext } from './herdr.js'
 import { executeTmuxRun, executeTmuxStart } from './tmux.js'
 import type { MuxExecutionPlanResult, MuxExecutionResult } from './types.js'
@@ -169,13 +169,16 @@ async function dispatchMux(
         ...plan,
         agent: agentId,
         profile: resolved.name,
+        profile_source: resolved.source,
         model: resolved.model,
+        model_source: resolved.modelSource,
         effort: resolved.effort,
+        effort_source: resolved.effortSource,
       }
       if (isJsonMode(muxOpts)) {
         outputJsonSuccess(`mux.${mode}.plan`, data, [])
       } else {
-        printMuxDryRunPlan(data)
+        printMuxDryRunPlan(data, resolved)
       }
       return
     }
@@ -207,7 +210,12 @@ function failedStepMessage(result: MuxExecutionResult): string {
   return failedStep?.error ?? `mux ${result.mode} failed at ${result.failed_step ?? 'unknown'}`
 }
 
-export function printMuxDryRunPlan(plan: MuxExecutionPlanResult): void {
+export function printMuxDryRunPlan(plan: MuxExecutionPlanResult, resolved?: ResolvedProfile): void {
+  if (resolved) {
+    for (const line of formatResolvedProfileLines(resolved)) {
+      console.log(line)
+    }
+  }
   console.log('# Herdr dry-run command sequence:')
   console.log('No Herdr command was invoked.')
   console.log('herdr pane current --current')

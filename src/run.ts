@@ -3,7 +3,7 @@ import { getAgentAdapter } from './agents/registry.js'
 import { formatCommandSpec, runCommandSpec } from './command.js'
 import { getAgent, loadConfig, type ResolvedProfile, resolveConfigPath } from './config.js'
 import { isJsonMode, outputJsonFailure, outputJsonSuccess } from './json-output.js'
-import { ProfileError, resolveProfile } from './profile.js'
+import { formatResolvedProfileLines, ProfileError, resolveProfile } from './profile.js'
 
 export interface RunCommandOptions {
   model?: string
@@ -142,10 +142,13 @@ export function createRunCommand(): Command {
           outputJsonSuccess('run.plan', {
             interactive: false,
             config_path: resolveConfigPath(),
-            agent: effectiveAgentId,
             profile: resolved.name,
+            profile_source: resolved.source,
+            agent: effectiveAgentId,
             model: resolved.model,
+            model_source: resolved.modelSource,
             effort: resolved.effort,
+            effort_source: resolved.effortSource,
             command: {
               executable: spec.command,
               args: spec.args,
@@ -154,9 +157,8 @@ export function createRunCommand(): Command {
           })
           return
         }
-        console.log(`# Resolved profile: ${resolved.name}`)
-        if (resolved.effort) {
-          console.log(`# Resolved effort: ${resolved.effort}`)
+        for (const line of formatResolvedProfileLines(resolved)) {
+          console.log(line)
         }
         console.log(formatCommandSpec(spec))
         return

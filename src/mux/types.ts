@@ -61,8 +61,11 @@ export interface MuxExecutionResult {
 export interface MuxExecutionPlanResult extends MuxExecutionResult {
   agent?: string
   profile?: string
+  profile_source?: 'cli' | 'env' | 'default'
   model?: string
+  model_source?: 'cli' | 'env' | 'profile'
   effort?: string
+  effort_source?: 'cli' | 'env' | 'profile'
   command: MuxCommandSpec
   plan: MuxExecutionPlan
   pane_operations: MuxPaneOperation[]

@@ -78,3 +78,25 @@ export function resolveProfile(config: Config, options: ResolveProfileOptions): 
     effortSource,
   }
 }
+
+export function formatResolvedProfileLines(resolved: ResolvedProfile): string[] {
+  const lines = [
+    `# Resolved profile: ${resolved.name} (source: ${resolved.source})`,
+    `# Resolved agent: ${resolved.agent}`,
+    `# Resolved model: ${resolved.model}`,
+  ]
+  if (resolved.effort) {
+    lines.push(`# Resolved effort: ${resolved.effort}`)
+  }
+  const overrides: string[] = []
+  if (resolved.modelSource !== 'profile') {
+    overrides.push(`model=${resolved.modelSource}`)
+  }
+  if (resolved.effortSource !== undefined && resolved.effortSource !== 'profile') {
+    overrides.push(`effort=${resolved.effortSource}`)
+  }
+  if (overrides.length > 0) {
+    lines.push(`# Overrides: ${overrides.join(', ')}`)
+  }
+  return lines
+}

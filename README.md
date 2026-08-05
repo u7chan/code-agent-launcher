@@ -132,12 +132,32 @@ cagent run reviewer --dry-run --json -- "この変更をレビューして"
 ```
 
 通常出力は、例えば `cagent run reasoner --dry-run -- "review design"` のように
-Profileを先頭に表示します。後続のコマンドはagentとeffortに応じて変わります。
+Profileの解決結果を先頭に表示します。Profile選択元 (`cli` / `env` / `default`) と、
+`--model` / `--effort` / 環境変数で適用されたoverrideも表示します。後続のコマンドは
+agentとeffortに応じて変わります。
 
 ```text
-# Resolved profile: reasoner
+# Resolved profile: reasoner (source: cli)
+# Resolved agent: codex
+# Resolved model: gpt-5.6-sol
 # Resolved effort: high
 codex exec --model gpt-5.6-sol -c "model_reasoning_effort=\"high\"" "review design"
+```
+
+Profileが環境変数や `default_profile` から解決され、CLIで `--effort` を上書きした場合も、
+同じ解決結果を表示できます。overrideされた項目は `# Overrides:` に示します。
+
+```bash
+CAGENT_PROFILE=reasoner cagent run --dry-run --effort xhigh -- "review design"
+```
+
+```text
+# Resolved profile: reasoner (source: env)
+# Resolved agent: codex
+# Resolved model: gpt-5.6-sol
+# Resolved effort: xhigh
+# Overrides: effort=cli
+codex exec --model gpt-5.6-sol -c "model_reasoning_effort=\"xhigh\"" "review design"
 ```
 
 ### Herdr mux
@@ -186,16 +206,29 @@ cagent doctor --json
 
 ### Profileとmodelの一覧
 
-`cagent models` は設定済みのagentとProfileを表示します。外部CLIは起動しません。
-現在のCLIに `profiles` 単独サブコマンドはなく、Profile一覧は `cagent models` で確認します。
+`cagent profiles` は設定済みのProfileと、agent / model / effortを表示します。
+外部CLIは起動しません。`*` は `default_profile` を示します。
 
 ```bash
-cagent models
+cagent profiles
 ```
+
+```text
+PROFILE      AGENT       MODEL          EFFORT
+fast         codex       gpt-5.6-luna   -
+balanced *   codex       gpt-5.6-terra  -
+frontier     codex       gpt-5.6-sol    high
+
+* = default_profile
+```
+
+`cagent models` は設定済みmodelの一覧を表示しません。Profile一覧は
+`cagent profiles`、providerの利用可能model一覧は `cagent models available` を使います。
+`cagent models` 単体はこの案内を表示して終了します。
 
 `models available` はprovider CLIに問い合わせて、現在利用可能なmodelを表示します。
 OpenCode Goでは次のコマンドに対応しています。Codexにはprovider model discovery adapterが
-ないため、`cagent models` を使って設定済みProfileを確認してください。
+ないため、Codexの利用可能modelは `cagent profiles` と設定を確認してください。
 
 ```bash
 CAGENT_AGENT=opencode-go cagent models available
@@ -204,9 +237,6 @@ CAGENT_AGENT=opencode-go cagent models available --refresh
 # provider CLIを起動せず、解決されるコマンドだけ確認
 CAGENT_AGENT=opencode-go cagent --dry-run models available --refresh
 ```
-
-`cagent models --refresh` は `models available --refresh` を使うよう警告するだけで、
-providerの一覧は更新しません。
 
 ## 環境変数
 
