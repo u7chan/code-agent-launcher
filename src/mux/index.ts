@@ -168,7 +168,7 @@ async function dispatchMux(
       const data: MuxExecutionPlanResult = {
         ...plan,
         agent: agentId,
-        level: resolved.name,
+        profile: resolved.name,
         model: resolved.model,
         effort: resolved.effort,
       }

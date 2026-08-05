@@ -60,7 +60,7 @@ export interface MuxExecutionResult {
 
 export interface MuxExecutionPlanResult extends MuxExecutionResult {
   agent?: string
-  level?: string
+  profile?: string
   model?: string
   effort?: string
   command: MuxCommandSpec
