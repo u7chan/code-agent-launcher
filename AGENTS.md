@@ -36,6 +36,17 @@ maintainer向けRelease作業の依頼では `.agents/skills/github-release/SKIL
 Version更新PRを作る `prepare` と、merge済みmainを検証してtag pushを開始する `start` を分離し、
 Skillの承認ゲートと禁止事項に従ってください。
 
+## PRマージの禁止
+
+エージェントはユーザーから明示的なマージ依頼がない限り、PRをマージしない。CI完了前にマージしない。
+
+## モデル名のハードコード禁止
+
+- プロダクトコード（`src/*.ts`、テストファイルを除く）に実際のモデル名をハードコードしない
+- テストコード（`src/*.test.ts`）では架空のモデル名（`test-model-v1`, `example-model-fast` など）を使用する
+- `validation/` は実際のモデルルーティング検証のため、本ルールの例外とする
+- デフォルト設定テンプレート（`DEFAULT_CONFIG`）も架空名を使用する
+
 ## Related files
 
 - `src/index.ts`: CLIエントリーポイント

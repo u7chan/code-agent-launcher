@@ -131,7 +131,6 @@ export function createRunCommand(): Command {
       const spec = adapter.buildRunCommand({
         bin: agent.bin,
         modelId: resolved.model,
-        level: resolved.name,
         cwd: process.cwd(),
         extraArgs,
         config: agent,

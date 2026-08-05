@@ -149,7 +149,6 @@ function invocationLog(fake: ReturnType<typeof writeFakeHerdr>): string[] {
 }
 
 const codexConfig = `default_agent: codex
-default_level: mid
 default_profile: mid
 profiles:
   mid: { agent: codex, model: gpt-5 }
@@ -158,18 +157,12 @@ agents:
     bin: codex
     provider: codex
     model_id_prefix: false
-    levels:
-      mid:
-        description: Medium
-        default_model: gpt-5
-        models: [gpt-5]
 multiplexer:
   default: herdr
   herdr: { enabled: true }
 `
 
 const opencodeConfig = `default_agent: opencode-go
-default_level: mid
 default_profile: mid
 profiles:
   mid: { agent: opencode-go, model: gpt-5 }
@@ -177,11 +170,6 @@ agents:
   opencode-go:
     bin: opencode
     provider: opencode-go
-    levels:
-      mid:
-        description: Medium
-        default_model: gpt-5
-        models: [gpt-5]
 multiplexer:
   default: herdr
   herdr: { enabled: true }
@@ -201,7 +189,7 @@ describe('validateMuxAdapter', () => {
 
   it('throws MuxAdapterError for disabled adapter', () => {
     const { file, cleanup } = writeTempConfig(
-      `default_agent: opencode-go\ndefault_level: low\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      low:\n        description: Simple\n        default_model: qwen\n        models: [qwen]\nmultiplexer:\n  default: herdr\n  herdr: { enabled: false }\n`,
+      `default_agent: opencode-go\nprofiles:\n  low: { agent: opencode-go, model: test-model }\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\nmultiplexer:\n  default: herdr\n  herdr: { enabled: false }\n`,
     )
     try {
       const config = loadConfig(file)
@@ -213,7 +201,7 @@ describe('validateMuxAdapter', () => {
 
   it('throws MuxAdapterError for unknown adapter', () => {
     const { file, cleanup } = writeTempConfig(
-      `default_agent: opencode-go\ndefault_level: low\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\n    levels:\n      low:\n        description: Simple\n        default_model: qwen\n        models: [qwen]\nmultiplexer:\n  default: unknown\n  unknown: { enabled: true }\n`,
+      `default_agent: opencode-go\nprofiles:\n  low: { agent: opencode-go, model: test-model }\nagents:\n  opencode-go:\n    bin: opencode\n    provider: opencode-go\nmultiplexer:\n  default: unknown\n  unknown: { enabled: true }\n`,
     )
     try {
       const config = loadConfig(file)

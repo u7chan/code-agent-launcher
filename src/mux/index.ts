@@ -104,7 +104,6 @@ function resolveMuxCommandWithMetadata(
   const context = {
     bin: agent.bin,
     modelId: resolved.model,
-    level: resolved.name,
     cwd: process.cwd(),
     extraArgs,
     config: agent,

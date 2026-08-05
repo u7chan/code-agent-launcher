@@ -7,7 +7,6 @@ export interface CommandSpec {
 export interface BuildAgentCommandContext {
   bin: string
   modelId?: string
-  level: string
   cwd: string
   extraArgs: string[]
   config: AgentConfig

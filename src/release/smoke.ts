@@ -94,7 +94,7 @@ export async function runStandaloneSmoke(options: StandaloneSmokeOptions): Promi
       executionDirectory,
       environment,
     )
-    if (!dryRunOutput.includes('# Resolved level: mid')) {
+    if (!dryRunOutput.includes('# Resolved profile: balanced')) {
       throw new Error('Standalone did not use the explicitly initialized configuration')
     }
 
