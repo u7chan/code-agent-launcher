@@ -6,9 +6,9 @@ import { createMainCommand } from './main.js'
 import { createRunCommand, parseRunArgv } from './run.js'
 
 describe('parseRunArgv', () => {
-  it('takes level before -- and prompt after --', () => {
+  it('takes profile before -- and prompt after --', () => {
     expect(parseRunArgv(['node', 'cagent', 'run', 'mid', '--', 'hello'])).toEqual({
-      positionalLevel: 'mid',
+      positionalProfile: 'mid',
       extraArgs: ['hello'],
     })
   })
@@ -17,56 +17,56 @@ describe('parseRunArgv', () => {
     expect(
       parseRunArgv(['node', 'cagent', 'run', '--model', 'qwen3.7-plus', '--', 'hello']),
     ).toEqual({
-      positionalLevel: undefined,
+      positionalProfile: undefined,
       extraArgs: ['hello'],
     })
   })
 
-  it('supports level via -l before --', () => {
+  it('ignores the removed level option before --', () => {
     expect(parseRunArgv(['node', 'cagent', 'run', '-l', 'high', '--', 'hello'])).toEqual({
-      positionalLevel: undefined,
+      positionalProfile: undefined,
       extraArgs: ['hello'],
     })
   })
 
   it('keeps extra positionals before -- as extraArgs', () => {
     expect(parseRunArgv(['node', 'cagent', 'run', 'mid', 'extra', '--', 'hello'])).toEqual({
-      positionalLevel: 'mid',
+      positionalProfile: 'mid',
       extraArgs: ['extra', 'hello'],
     })
   })
 
   it('works without -- separator', () => {
     expect(parseRunArgv(['node', 'cagent', 'run', 'mid', 'hello'])).toEqual({
-      positionalLevel: 'mid',
+      positionalProfile: 'mid',
       extraArgs: ['hello'],
     })
   })
 
   it('handles --effort=x correctly', () => {
     expect(parseRunArgv(['node', 'cagent', 'run', '--effort=high', '--', 'prompt'])).toEqual({
-      positionalLevel: undefined,
+      positionalProfile: undefined,
       extraArgs: ['prompt'],
     })
   })
 
   it('handles --effort x correctly (no = sign)', () => {
     expect(parseRunArgv(['node', 'cagent', 'run', '--effort', 'high', '--', 'prompt'])).toEqual({
-      positionalLevel: undefined,
+      positionalProfile: undefined,
       extraArgs: ['prompt'],
     })
   })
 
   it('handles -e flag for effort', () => {
     expect(parseRunArgv(['node', 'cagent', 'run', '-e', 'high', '--', 'prompt'])).toEqual({
-      positionalLevel: undefined,
+      positionalProfile: undefined,
       extraArgs: ['prompt'],
     })
   })
 
   it('treats --json as a flag-like option', () => {
     expect(parseRunArgv(['node', 'cagent', 'run', '--json', 'low', '--dry-run'])).toEqual({
-      positionalLevel: 'low',
+      positionalProfile: 'low',
       extraArgs: [],
     })
   })
@@ -80,6 +80,9 @@ describe('run JSON output', () => {
       file,
       `default_agent: codex
 default_level: mid
+default_profile: mid
+profiles:
+  mid: { agent: codex, model: gpt-5 }
 agents:
   codex:
     bin: node
@@ -118,6 +121,7 @@ multiplexer:
       expect(output.operation).toBe('run.plan')
       expect(output.data.interactive).toBe(false)
       expect(output.data.config_path).toBe(file)
+      expect(output.data.profile).toBe('mid')
       expect(output.data.command.args).toContain('hello')
     } finally {
       logSpy.mockRestore()
@@ -134,6 +138,9 @@ multiplexer:
       file,
       `default_agent: codex
 default_level: mid
+default_profile: mid
+profiles:
+  mid: { agent: codex, model: gpt-5 }
 agents:
   codex:
     bin: node
@@ -171,9 +178,7 @@ multiplexer:
       expect(logSpy).toHaveBeenCalledTimes(1)
       expect(warnSpy).not.toHaveBeenCalled()
       const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
-      expect(output.warnings).toHaveLength(1)
-      expect(output.warnings[0].code).toBe('UNKNOWN_MODEL')
-      expect(output.warnings[0].details.model).toBe('unknown-model')
+      expect(output.warnings).toHaveLength(0)
     } finally {
       warnSpy.mockRestore()
       logSpy.mockRestore()
@@ -219,6 +224,9 @@ describe('run config validation', () => {
       file,
       `default_agent: opencode-go
 default_level: mid
+default_profile: mid
+profiles:
+  mid: { agent: opencode-go, model: deepseek-v4-pro }
 agents:
   opencode-go:
     bin: opencode

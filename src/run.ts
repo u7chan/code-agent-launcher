@@ -1,18 +1,11 @@
 import { Command } from 'commander'
 import { getAgentAdapter } from './agents/registry.js'
 import { formatCommandSpec, runCommandSpec } from './command.js'
-import { getAgent, loadConfig, resolveConfigPath } from './config.js'
-import {
-  isJsonMode,
-  type JsonWarning,
-  outputJsonFailure,
-  outputJsonSuccess,
-} from './json-output.js'
-import { resolveModel } from './model.js'
+import { getAgent, loadConfig, type ResolvedProfile, resolveConfigPath } from './config.js'
+import { isJsonMode, outputJsonFailure, outputJsonSuccess } from './json-output.js'
+import { ProfileError, resolveProfile } from './profile.js'
 
 export interface RunCommandOptions {
-  agent?: string
-  level?: string
   model?: string
   effort?: string
   dryRun?: boolean
@@ -21,11 +14,11 @@ export interface RunCommandOptions {
 
 /**
  * Parse `cagent run` argv so that:
- * - optional level is taken only from tokens before `--`
- * - tokens after `--` are always prompt/extra args (never level)
+ * - optional profile is taken only from tokens before `--`
+ * - tokens after `--` are always prompt/extra args (never profile)
  */
 export function parseRunArgv(argv: string[]): {
-  positionalLevel?: string
+  positionalProfile?: string
   extraArgs: string[]
 } {
   let start = -1
@@ -68,18 +61,18 @@ export function parseRunArgv(argv: string[]): {
   }
 
   return {
-    positionalLevel: positionals[0],
+    positionalProfile: positionals[0],
     extraArgs: [...positionals.slice(1), ...afterDd],
   }
 }
 
 function parseRunCommandArgs(args: string[]): {
-  positionalLevel?: string
+  positionalProfile?: string
   extraArgs: string[]
 } {
   if (args[0] && !args[0].startsWith('-')) {
     return {
-      positionalLevel: args[0],
+      positionalProfile: args[0],
       extraArgs: args.slice(1),
     }
   }
@@ -91,20 +84,13 @@ export function createRunCommand(): Command {
 
   command
     .description('Run a coding agent non-interactively with a prompt')
-    .option('-a, --agent <agent>', 'coding agent id')
     .allowUnknownOption()
     .action(async () => {
       const globals = command.optsWithGlobals() as RunCommandOptions
-      const { positionalLevel, extraArgs } = process.argv.includes('run')
+      const { positionalProfile, extraArgs } = process.argv.includes('run')
         ? parseRunArgv(process.argv)
         : parseRunCommandArgs(command.args)
 
-      const cliLevel = globals.level ?? positionalLevel
-      const cliModel = globals.model
-      const cliEffort = globals.effort
-      const envModel = process.env.CAGENT_MODEL
-      const envLevel = process.env.CAGENT_LEVEL
-      const envEffort = process.env.CAGENT_EFFORT
       const dryRun = globals.dryRun === true
       const json = isJsonMode(globals)
 
@@ -114,43 +100,38 @@ export function createRunCommand(): Command {
           'USAGE_ERROR',
           '--json requires --dry-run for this command',
           { suggestion: 'Use --dry-run --json or pass --json after --' },
-          'Use `cagent run --dry-run [level] --json` for cagent control metadata.\n' +
+          'Use `cagent run --dry-run [profile] --json` for cagent control metadata.\n' +
             'Pass `--json` after `--` when requesting JSON from the underlying agent CLI.',
         )
         process.exit(1)
       }
 
       const config = loadConfig()
-      const effectiveAgentId = globals.agent ?? process.env.CAGENT_AGENT ?? config.default_agent
+      let resolved: ResolvedProfile
+      try {
+        resolved = resolveProfile(config, {
+          cliProfile: positionalProfile,
+          envProfile: process.env.CAGENT_PROFILE,
+          cliModel: globals.model,
+          envModel: process.env.CAGENT_MODEL,
+          cliEffort: globals.effort,
+          envEffort: process.env.CAGENT_EFFORT,
+        })
+      } catch (error) {
+        if (error instanceof ProfileError) {
+          console.error(error.message)
+          process.exit(1)
+        }
+        throw error
+      }
+      const effectiveAgentId = resolved.agent
       const agent = getAgent(config, effectiveAgentId)
       const adapter = getAgentAdapter(effectiveAgentId)
-      const resolved = resolveModel(config, {
-        agent: effectiveAgentId,
-        cliModel,
-        cliLevel,
-        envModel,
-        envLevel,
-        cliEffort,
-        envEffort,
-      })
-
-      const warnings: JsonWarning[] = []
-      for (const warning of resolved.warnings) {
-        if (json) {
-          warnings.push({
-            code: 'UNKNOWN_MODEL',
-            message: warning,
-            details: { model: resolved.modelId },
-          })
-        } else {
-          console.warn(`Warning: ${warning}`)
-        }
-      }
 
       const spec = adapter.buildRunCommand({
         bin: agent.bin,
-        modelId: resolved.modelId,
-        level: resolved.levelName ?? config.default_level,
+        modelId: resolved.model,
+        level: resolved.name,
         cwd: process.cwd(),
         extraArgs,
         config: agent,
@@ -158,31 +139,23 @@ export function createRunCommand(): Command {
       })
 
       if (dryRun) {
-        const displayLevel =
-          resolved.levelName && agent.levels[resolved.levelName]
-            ? resolved.levelName
-            : config.default_level
         if (json) {
-          outputJsonSuccess(
-            'run.plan',
-            {
-              interactive: false,
-              config_path: resolveConfigPath(),
-              agent: effectiveAgentId,
-              level: displayLevel,
-              model: resolved.modelId,
-              effort: resolved.effort,
-              command: {
-                executable: spec.command,
-                args: spec.args,
-                env: spec.env ?? {},
-              },
+          outputJsonSuccess('run.plan', {
+            interactive: false,
+            config_path: resolveConfigPath(),
+            agent: effectiveAgentId,
+            profile: resolved.name,
+            model: resolved.model,
+            effort: resolved.effort,
+            command: {
+              executable: spec.command,
+              args: spec.args,
+              env: spec.env ?? {},
             },
-            warnings,
-          )
+          })
           return
         }
-        console.log(`# Resolved level: ${displayLevel}`)
+        console.log(`# Resolved profile: ${resolved.name}`)
         if (resolved.effort) {
           console.log(`# Resolved effort: ${resolved.effort}`)
         }
