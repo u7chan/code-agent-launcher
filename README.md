@@ -144,14 +144,18 @@ agentとeffortに応じて変わります。
 codex exec --model gpt-5.6-sol -c "model_reasoning_effort=\"high\"" "review design"
 ```
 
-Profileが環境変数や `default_profile` から解決された場合も、同じ解決結果をJSONで確認
-できます。
+Profileが環境変数や `default_profile` から解決され、CLIで `--effort` を上書きした場合も、
+同じ解決結果を表示できます。overrideされた項目は `# Overrides:` に示します。
+
+```bash
+CAGENT_PROFILE=reasoner cagent run --dry-run --effort xhigh -- "review design"
+```
 
 ```text
 # Resolved profile: reasoner (source: env)
 # Resolved agent: codex
 # Resolved model: gpt-5.6-sol
-# Resolved effort: high
+# Resolved effort: xhigh
 # Overrides: effort=cli
 codex exec --model gpt-5.6-sol -c "model_reasoning_effort=\"xhigh\"" "review design"
 ```

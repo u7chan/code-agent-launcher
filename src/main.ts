@@ -3,7 +3,7 @@ import { getAgentAdapter } from './agents/registry.js'
 import { formatCommandSpec, runCommandSpec } from './command.js'
 import { getAgent, loadConfig, type ResolvedProfile, resolveConfigPath } from './config.js'
 import { isJsonMode, outputJsonFailure, outputJsonSuccess } from './json-output.js'
-import { ProfileError, resolveProfile } from './profile.js'
+import { formatResolvedProfileLines, ProfileError, resolveProfile } from './profile.js'
 import { assertTty } from './tty.js'
 import { VERSION } from './version.js'
 
@@ -113,21 +113,8 @@ export function createMainCommand(): Command {
           })
           return
         }
-        console.log(`# Resolved profile: ${resolved.name} (source: ${resolved.source})`)
-        console.log(`# Resolved agent: ${agentId}`)
-        console.log(`# Resolved model: ${resolved.model}`)
-        if (resolved.effort) {
-          console.log(`# Resolved effort: ${resolved.effort}`)
-        }
-        const overrides: string[] = []
-        if (resolved.modelSource !== 'profile') {
-          overrides.push(`model=${resolved.modelSource}`)
-        }
-        if (resolved.effortSource !== undefined && resolved.effortSource !== 'profile') {
-          overrides.push(`effort=${resolved.effortSource}`)
-        }
-        if (overrides.length > 0) {
-          console.log(`# Overrides: ${overrides.join(', ')}`)
+        for (const line of formatResolvedProfileLines(resolved)) {
+          console.log(line)
         }
         console.log(formatCommandSpec(spec))
         return

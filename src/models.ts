@@ -7,27 +7,37 @@ import { isJsonMode, outputJsonFailure } from './json-output.js'
 export function createModelsCommand(): Command {
   const command = new Command('models')
 
-  command.description('Query the provider for available models').action(() => {
-    const globals = command.optsWithGlobals() as { json?: boolean }
-    const message =
-      '`cagent models` no longer lists configured models.\n' +
-      'Use `cagent profiles` to view the configured profile list.\n' +
-      'Use `cagent models available` to query the provider for available models.'
-    if (isJsonMode(globals)) {
-      outputJsonFailure('models', 'USAGE_ERROR', message)
-    } else {
-      console.error(message)
-    }
-    process.exit(1)
-  })
+  command
+    .description('Query the provider for available models')
+    .option(
+      '--refresh',
+      'No effect; use "cagent models available --refresh" to refresh the provider model list',
+    )
+    .action(() => {
+      const globals = command.optsWithGlobals() as { json?: boolean }
+      const message =
+        '`cagent models` no longer lists configured models.\n' +
+        'Use `cagent profiles` to view the configured profile list.\n' +
+        'Use `cagent models available` to query the provider for available models.'
+      if (isJsonMode(globals)) {
+        outputJsonFailure('models', 'USAGE_ERROR', message)
+      } else {
+        console.error(message)
+      }
+      process.exit(1)
+    })
 
   const availableCmd = new Command('available')
   availableCmd
     .description('List available models from the provider')
     .option('--refresh', 'Refresh the model list from the provider')
-    .action(async (options: { refresh?: boolean }) => {
+    .action(async () => {
       const config = loadConfig()
-      const globals = availableCmd.optsWithGlobals() as { agent?: string; dryRun?: boolean }
+      const globals = availableCmd.optsWithGlobals() as {
+        agent?: string
+        dryRun?: boolean
+        refresh?: boolean
+      }
       const effectiveAgentId = globals.agent ?? process.env.CAGENT_AGENT ?? config.default_agent
       if (!config.agents[effectiveAgentId]) {
         console.error(`Error: agent "${effectiveAgentId}" is not defined in config`)
@@ -47,7 +57,7 @@ export function createModelsCommand(): Command {
       const spec = adapter.buildModelListCommand({
         bin: agent.bin,
         provider: agent.provider,
-        refresh: options.refresh,
+        refresh: globals.refresh,
       })
 
       if (globals.dryRun) {

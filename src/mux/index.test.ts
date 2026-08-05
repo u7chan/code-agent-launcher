@@ -345,6 +345,82 @@ describe('mux JSON output', () => {
   })
 })
 
+describe('mux dry-run resolution output', () => {
+  it('prints resolved profile lines with overrides before the herdr plan', async () => {
+    clearEffortEnv()
+    const { file, cleanup } = writeTempConfig(codexConfig)
+    const originalConfig = process.env.CAGENT_CONFIG
+    process.env.CAGENT_CONFIG = file
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const program = createMainCommand()
+      program.addCommand(createMuxCommand())
+      await program.parseAsync([
+        'node',
+        'cagent',
+        'mux',
+        'run',
+        'mid',
+        '--dry-run',
+        '--model',
+        'codex/other',
+        '--effort',
+        'high',
+        '--',
+        'hello',
+      ])
+      const lines = logSpy.mock.calls.map((call) => String(call[0]))
+      expect(lines).toContain('# Resolved profile: mid (source: cli)')
+      expect(lines).toContain('# Resolved agent: codex')
+      expect(lines).toContain('# Resolved model: codex/other')
+      expect(lines).toContain('# Resolved effort: high')
+      expect(lines).toContain('# Overrides: model=cli, effort=cli')
+      expect(lines).toContain('# Herdr dry-run command sequence:')
+    } finally {
+      logSpy.mockRestore()
+      if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
+      else process.env.CAGENT_CONFIG = originalConfig
+      cleanup()
+    }
+  })
+
+  it('reports env-sourced effort in the JSON plan', async () => {
+    clearEffortEnv()
+    const { file, cleanup } = writeTempConfig(codexConfig)
+    const originalConfig = process.env.CAGENT_CONFIG
+    process.env.CAGENT_CONFIG = file
+    process.env.CAGENT_EFFORT = 'high'
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const program = createMainCommand()
+      program.addCommand(createMuxCommand())
+      await program.parseAsync([
+        'node',
+        'cagent',
+        'mux',
+        'run',
+        'mid',
+        '--dry-run',
+        '--json',
+        '--',
+        'hello',
+      ])
+      const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
+      expect(output.data.profile).toBe('mid')
+      expect(output.data.profile_source).toBe('cli')
+      expect(output.data.model_source).toBe('profile')
+      expect(output.data.effort).toBe('high')
+      expect(output.data.effort_source).toBe('env')
+    } finally {
+      logSpy.mockRestore()
+      if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
+      else process.env.CAGENT_CONFIG = originalConfig
+      delete process.env.CAGENT_EFFORT
+      cleanup()
+    }
+  })
+})
+
 describe('Herdr MuxExecutionResult', () => {
   it('records preflight failure and skips all Herdr operations', () => {
     const originalPath = process.env.PATH

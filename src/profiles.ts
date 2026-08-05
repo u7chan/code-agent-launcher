@@ -9,7 +9,10 @@ export function formatProfiles(config: Config): string {
     return 'No profiles defined.'
   }
 
-  const nameWidth = Math.max(7, ...profiles.map(([name]) => name.length))
+  const nameWidth = Math.max(
+    7,
+    ...profiles.map(([name]) => (name === config.default_profile ? name.length + 2 : name.length)),
+  )
   const agentWidth = Math.max(5, ...profiles.map(([, profile]) => profile.agent.length))
   const modelWidth = Math.max(5, ...profiles.map(([, profile]) => profile.model.length))
   const effortWidth = Math.max(6, ...profiles.map(([, profile]) => profile.effort?.length ?? 0))

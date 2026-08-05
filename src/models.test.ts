@@ -87,6 +87,33 @@ describe('models command', () => {
     }
   })
 
+  it('accepts the deprecated --refresh and routes to the same usage guidance', async () => {
+    const { file, cleanup } = writeTempConfig('opencode-go', 'opencode')
+    const originalConfig = process.env.CAGENT_CONFIG
+    process.env.CAGENT_CONFIG = file
+    const errorSpy = spyOn(console, 'error').mockImplementation(() => {})
+    const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit')
+    })
+    try {
+      const program = createMainCommand()
+      program.addCommand(createModelsCommand())
+      await expect(program.parseAsync(['node', 'cagent', 'models', '--refresh'])).rejects.toThrow(
+        'process.exit',
+      )
+      expect(exitSpy).toHaveBeenCalledWith(1)
+      const message = String(errorSpy.mock.calls[0]?.[0])
+      expect(message).toContain('cagent models available')
+      expect(message).toContain('cagent profiles')
+    } finally {
+      exitSpy.mockRestore()
+      errorSpy.mockRestore()
+      if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
+      else process.env.CAGENT_CONFIG = originalConfig
+      cleanup()
+    }
+  })
+
   it('prints the resolved command for models available with a discovery-capable adapter', async () => {
     const { file, cleanup } = writeTempConfig('opencode-go', 'opencode')
     const originalConfig = process.env.CAGENT_CONFIG
