@@ -1,6 +1,6 @@
 # ローカル検証
 
-CodexとOpenCode Goのモデルルーティング用smoke testを実行します。ここで指定する
+CodexとOpenCode Goのモデルルーティングを検証するスモークテストを実行します。ここで指定する
 `--profile core` / `--profile extended` はvalidation runnerの実行モードで、cagentの
 Launch Profileとは別に検証範囲を表します。
 
@@ -31,7 +31,7 @@ bun run validate smoke --profile core --live
 | opencode-go | opencode-frontier |
 
 期待するモデルは、`validation/config/matrix.yaml` の各Launch Profileに対応する
-`expected_model`を正として確認してください。
+`expected_model`を正本として参照してください。
 
 レポートは既定で `validation/.artifacts/` に生成され、Gitでは管理しません。プロバイダーの
 応答から実際のモデルIDを取得しないため、レポートでは

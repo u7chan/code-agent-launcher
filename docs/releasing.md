@@ -205,8 +205,8 @@ gh api -H 'X-GitHub-Api-Version: 2026-03-10' \
 Environmentの承認待ちとref制限は、production workflowへmanual triggerを追加せず、安全な
 rehearsalで確認します。承認・reject・cancelの前にdraftが作られないこともAPIで確認します。
 
-保護対象タグのforce update・delete拒否は、通常の`v*`と重ならない一意の使い捨てタグnamespaceと
-exact refだけを対象とする一時rulesetで、管理者が手動検証します。検証後は一時rulesetを先に削除し、
+保護対象タグのforce update・delete拒否は、通常の`v*`と重ならない一意で使い捨てのタグ用名前空間と
+exact refだけを対象とする一時rulesetを使って、管理者が手動で検証します。検証後は一時rulesetを先に削除し、
 使い捨てタグを削除します。その後、通常の2つのrulesetを詳細APIで再取得し、検証前の設定と一致する
 ことを確認します。拒否結果と復旧確認はIssueへ記録します。この検証用のadmin権限はRelease workflowへ
 付与しません。
@@ -235,7 +235,7 @@ workflowを停止し、作成済みタグは移動・削除しません。未公
 設定に戻し、上記APIですべての値を再確認してから再開します。緊急対応でもタグの移動・削除、
 admin bypassによる公開は行いません。
 
-## 初回リリースのrehearsal checklist
+## 初回リリースのリハーサルチェックリスト
 
 初回のproduction Releaseでは、各項目をメンテナーが確認し、結果とURLをIssueへ記録します。
 
