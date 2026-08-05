@@ -1,19 +1,13 @@
 import { Command, Option } from 'commander'
 import { getAgentAdapter } from './agents/registry.js'
 import { formatCommandSpec, runCommandSpec } from './command.js'
-import { getAgent, loadConfig, resolveConfigPath } from './config.js'
-import {
-  isJsonMode,
-  type JsonWarning,
-  outputJsonFailure,
-  outputJsonSuccess,
-} from './json-output.js'
-import { resolveModel } from './model.js'
+import { getAgent, loadConfig, type ResolvedProfile, resolveConfigPath } from './config.js'
+import { isJsonMode, outputJsonFailure, outputJsonSuccess } from './json-output.js'
+import { ProfileError, resolveProfile } from './profile.js'
 import { assertTty } from './tty.js'
 import { VERSION } from './version.js'
 
 export interface MainOptions {
-  level?: string
   model?: string
   effort?: string
   dryRun?: boolean
@@ -30,8 +24,7 @@ export function createMainCommand(): Command {
     .description('Coding-agent launcher with model routing')
     .version(VERSION)
     .addOption(new Option('-v', 'output the version number').hideHelp())
-    .argument('[level]', 'task level (low, mid, high, etc.)')
-    .option('-l, --level <level>', 'task level')
+    .argument('[profile]', 'launch profile')
     .option('-m, --model <model>', 'explicit model id')
     .option('-e, --effort <effort>', 'explicit reasoning effort')
     .option('-a, --agent <agent>', 'coding agent id')
@@ -41,9 +34,9 @@ export function createMainCommand(): Command {
       new Option('--adapter <adapter>', 'multiplexer adapter to use').default(undefined).hideHelp(),
     )
     .allowUnknownOption()
-    .action(async (positionalLevel: string | undefined, options: MainOptions) => {
-      if (positionalLevel?.startsWith('--')) {
-        program.error(`error: unknown option '${positionalLevel}'`)
+    .action(async (positionalProfile: string | undefined, options: MainOptions) => {
+      if (positionalProfile?.startsWith('--')) {
+        program.error(`error: unknown option '${positionalProfile}'`)
       }
 
       if (program.opts().v) {
@@ -58,51 +51,39 @@ export function createMainCommand(): Command {
           'USAGE_ERROR',
           '--json requires --dry-run for this command',
           { suggestion: 'Use --dry-run --json or pass --json after --' },
-          'Use `cagent run --dry-run [level] --json` for cagent control metadata.\n' +
+          'Use `cagent run --dry-run [profile] --json` for cagent control metadata.\n' +
             'Pass `--json` after `--` when requesting JSON from the underlying agent CLI.',
         )
         process.exit(1)
       }
 
-      const cliLevel = options.level ?? positionalLevel
-      const cliModel = options.model
-      const cliEffort = options.effort
-      const envModel = process.env.CAGENT_MODEL
-      const envLevel = process.env.CAGENT_LEVEL
-      const envEffort = process.env.CAGENT_EFFORT
-
       const config = loadConfig()
-      const agentId = options.agent ?? process.env.CAGENT_AGENT ?? config.default_agent
-      const agent = getAgent(config, agentId)
-      const adapter = getAgentAdapter(agentId)
-      const resolved = resolveModel(config, {
-        agent: agentId,
-        cliModel,
-        cliLevel,
-        envModel,
-        envLevel,
-        cliEffort,
-        envEffort,
-      })
-
-      const warnings: JsonWarning[] = []
-      for (const warning of resolved.warnings) {
-        if (json) {
-          warnings.push({
-            code: 'UNKNOWN_MODEL',
-            message: warning,
-            details: { model: resolved.modelId },
-          })
-        } else {
-          console.warn(`Warning: ${warning}`)
+      let resolved: ResolvedProfile
+      try {
+        resolved = resolveProfile(config, {
+          cliProfile: positionalProfile,
+          envProfile: process.env.CAGENT_PROFILE,
+          cliModel: options.model,
+          envModel: process.env.CAGENT_MODEL,
+          cliEffort: options.effort,
+          envEffort: process.env.CAGENT_EFFORT,
+        })
+      } catch (error) {
+        if (error instanceof ProfileError) {
+          console.error(error.message)
+          process.exit(1)
         }
+        throw error
       }
 
-      const extraArgs = program.args.slice(positionalLevel !== undefined ? 1 : 0)
+      const agentId = resolved.agent
+      const agent = getAgent(config, agentId)
+      const adapter = getAgentAdapter(agentId)
+      const extraArgs = program.args.slice(positionalProfile !== undefined ? 1 : 0)
       const ctx = {
         bin: agent.bin,
-        modelId: resolved.modelId,
-        level: resolved.levelName ?? config.default_level,
+        modelId: resolved.model,
+        level: resolved.name,
         cwd: process.cwd(),
         extraArgs,
         config: agent,
@@ -110,34 +91,29 @@ export function createMainCommand(): Command {
       }
 
       if (!options.dryRun) {
-        assertTty('[level]', ['cagent run <level> -- "<prompt>"', 'cagent mux start <level>'])
+        assertTty('[profile]', ['cagent run <profile> -- "<prompt>"', 'cagent mux start <profile>'])
       }
 
       const spec = adapter.buildStartCommand?.(ctx) ?? adapter.buildRunCommand(ctx)
 
       if (options.dryRun) {
-        const level = resolved.levelName ?? config.default_level
         if (json) {
-          outputJsonSuccess(
-            'run.plan',
-            {
-              interactive: true,
-              config_path: resolveConfigPath(),
-              agent: agentId,
-              level,
-              model: resolved.modelId,
-              effort: resolved.effort,
-              command: {
-                executable: spec.command,
-                args: spec.args,
-                env: spec.env ?? {},
-              },
+          outputJsonSuccess('run.plan', {
+            interactive: true,
+            config_path: resolveConfigPath(),
+            agent: agentId,
+            profile: resolved.name,
+            model: resolved.model,
+            effort: resolved.effort,
+            command: {
+              executable: spec.command,
+              args: spec.args,
+              env: spec.env ?? {},
             },
-            warnings,
-          )
+          })
           return
         }
-        console.log(`# Resolved level: ${resolved.levelName ?? config.default_level}`)
+        console.log(`# Resolved profile: ${resolved.name}`)
         if (resolved.effort) {
           console.log(`# Resolved effort: ${resolved.effort}`)
         }

@@ -22,6 +22,11 @@ function configYaml(): string {
   return [
     'default_agent: opencode-go',
     'default_level: low',
+    'default_profile: low',
+    'profiles:',
+    '  low:',
+    '    agent: opencode-go',
+    '    model: test-model',
     'agents:',
     '  opencode-go:',
     '    bin: echo',
@@ -99,7 +104,7 @@ describe('standalone executable', () => {
       stderr: 'pipe',
     })
     expect(dryRunResult.exitCode).toBe(0)
-    expect(decoder.decode(dryRunResult.stdout)).toContain('# Resolved level: low')
+    expect(decoder.decode(dryRunResult.stdout)).toContain('# Resolved profile: low')
 
     const dryRunWithLevelResult = Bun.spawnSync({
       cmd: [binaryPath, '--dry-run', 'low'],
@@ -109,7 +114,7 @@ describe('standalone executable', () => {
       stderr: 'pipe',
     })
     expect(dryRunWithLevelResult.exitCode).toBe(0)
-    expect(decoder.decode(dryRunWithLevelResult.stdout)).toContain('# Resolved level: low')
+    expect(decoder.decode(dryRunWithLevelResult.stdout)).toContain('# Resolved profile: low')
 
     const configInitDryRunResult = Bun.spawnSync({
       cmd: [binaryPath, 'config', 'init', '--dry-run'],

@@ -39,6 +39,9 @@ function writeTestConfig(path: string, bin: string): void {
     path,
     `default_agent: codex
 default_level: mid
+default_profile: mid
+profiles:
+  mid: { agent: codex, model: gpt-5 }
 agents:
   codex:
     bin: ${bin}
@@ -105,7 +108,7 @@ describe('createMainCommand', () => {
     try {
       const program = createMainCommand()
       await program.parseAsync(['node', 'cagent', 'mid', '--dry-run'])
-      expect(logSpy).toHaveBeenCalledWith('# Resolved level: mid')
+      expect(logSpy).toHaveBeenCalledWith('# Resolved profile: mid')
     } finally {
       logSpy.mockRestore()
       restoreTty()
@@ -136,10 +139,10 @@ describe('createMainCommand', () => {
       expect(output.operation).toBe('run.plan')
       expect(output.data.interactive).toBe(true)
       expect(output.data.agent).toBe('codex')
-      expect(output.data.level).toBe('mid')
+      expect(output.data.profile).toBe('mid')
       expect(output.data.config_path).toBe(config)
       expect(output.data.command.executable).toBe('node')
-      expect(String(logSpy.mock.calls[0]?.[0])).not.toContain('# Resolved level')
+      expect(String(logSpy.mock.calls[0]?.[0])).not.toContain('# Resolved profile')
     } finally {
       logSpy.mockRestore()
       if (originalConfig === undefined) delete process.env.CAGENT_CONFIG
@@ -196,9 +199,7 @@ describe('createMainCommand', () => {
       expect(logSpy).toHaveBeenCalledTimes(1)
       expect(warnSpy).not.toHaveBeenCalled()
       const output = JSON.parse(String(logSpy.mock.calls[0]?.[0]))
-      expect(output.warnings).toHaveLength(1)
-      expect(output.warnings[0].code).toBe('UNKNOWN_MODEL')
-      expect(output.warnings[0].details.model).toBe('unknown-model')
+      expect(output.warnings).toHaveLength(0)
     } finally {
       warnSpy.mockRestore()
       logSpy.mockRestore()

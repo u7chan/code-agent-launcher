@@ -6,6 +6,7 @@ import {
   getAgent,
   loadConfig,
   type MultiplexerAdapter,
+  type ResolvedProfile,
   resolveConfigPath,
 } from '../config.js'
 import {
@@ -14,7 +15,7 @@ import {
   outputJsonFailure,
   outputJsonSuccess,
 } from '../json-output.js'
-import { resolveModel } from '../model.js'
+import { resolveProfile } from '../profile.js'
 import { executeHerdrRun, executeHerdrStart, type HerdrContext } from './herdr.js'
 import { executeTmuxRun, executeTmuxStart } from './tmux.js'
 import type { MuxExecutionPlanResult, MuxExecutionResult } from './types.js'
@@ -64,14 +65,14 @@ interface ResolvedMuxCommand {
   adapterName: string
   commandSpec: CommandSpec
   agentId: string
-  resolved: ReturnType<typeof resolveModel>
+  resolved: ResolvedProfile
   warnings: JsonWarning[]
 }
 
 function resolveMuxCommandWithMetadata(
   config: Config,
   mode: 'start' | 'run',
-  level: string,
+  profile: string,
   muxOpts: MuxGlobalOptions,
   extraArgs: string[],
 ): ResolvedMuxCommand {
@@ -79,30 +80,17 @@ function resolveMuxCommandWithMetadata(
 
   validateMuxAdapter(config, adapterName)
 
-  const agentId = muxOpts.agent ?? process.env.CAGENT_AGENT ?? config.default_agent
-  const resolved = resolveModel(config, {
+  const resolved = resolveProfile(config, {
+    cliProfile: profile,
     cliModel: muxOpts.model,
-    cliLevel: level,
     cliEffort: muxOpts.effort,
-    agent: agentId,
+    envProfile: process.env.CAGENT_PROFILE,
     envModel: process.env.CAGENT_MODEL,
-    envLevel: process.env.CAGENT_LEVEL,
     envEffort: process.env.CAGENT_EFFORT,
   })
 
+  const agentId = resolved.agent
   const warnings: JsonWarning[] = []
-  const json = isJsonMode(muxOpts)
-  for (const warning of resolved.warnings) {
-    if (json) {
-      warnings.push({
-        code: 'UNKNOWN_MODEL',
-        message: warning,
-        details: { model: resolved.modelId },
-      })
-    } else {
-      console.warn(`Warning: ${warning}`)
-    }
-  }
 
   if (mode === 'start' && agentId === 'opencode-go' && resolved.effort) {
     throw new MuxAdapterError(
@@ -114,8 +102,8 @@ function resolveMuxCommandWithMetadata(
   const codingAdapter = getAgentAdapter(agentId)
   const context = {
     bin: agent.bin,
-    modelId: resolved.modelId,
-    level,
+    modelId: resolved.model,
+    level: resolved.name,
     cwd: process.cwd(),
     extraArgs,
     config: agent,
@@ -132,21 +120,25 @@ function resolveMuxCommandWithMetadata(
 export function resolveMuxCommand(
   config: Config,
   mode: 'start' | 'run',
-  level: string,
+  profile: string,
   muxOpts: MuxGlobalOptions,
   extraArgs: string[],
 ): { adapterName: string; commandSpec: CommandSpec } {
   const { adapterName, commandSpec } = resolveMuxCommandWithMetadata(
     config,
     mode,
-    level,
+    profile,
     muxOpts,
     extraArgs,
   )
   return { adapterName, commandSpec }
 }
 
-async function dispatchMux(mode: 'start' | 'run', level: string, command: Command): Promise<void> {
+async function dispatchMux(
+  mode: 'start' | 'run',
+  profile: string,
+  command: Command,
+): Promise<void> {
   const muxOpts = command.optsWithGlobals() as MuxGlobalOptions
   const config = loadConfig()
   const extraArgs = command.args.slice(1)
@@ -154,7 +146,7 @@ async function dispatchMux(mode: 'start' | 'run', level: string, command: Comman
   const { adapterName, commandSpec, agentId, resolved, warnings } = resolveMuxCommandWithMetadata(
     config,
     mode,
-    level,
+    profile,
     muxOpts,
     extraArgs,
   )
@@ -176,8 +168,8 @@ async function dispatchMux(mode: 'start' | 'run', level: string, command: Comman
       const data: MuxExecutionPlanResult = {
         ...plan,
         agent: agentId,
-        level: resolved.levelName ?? level,
-        model: resolved.modelId,
+        level: resolved.name,
+        model: resolved.model,
         effort: resolved.effort,
       }
       if (isJsonMode(muxOpts)) {
@@ -292,18 +284,18 @@ export function createMuxCommand(): Command {
 
   const start = new Command('start')
     .description('Start an interactive coding-agent session in a new pane')
-    .argument('<level>', 'task level (low, mid, high, etc.)')
+    .argument('<profile>', 'launch profile')
     .allowUnknownOption()
-    .action(async (level: string) => {
-      await dispatchMux('start', level, start)
+    .action(async (profile: string) => {
+      await dispatchMux('start', profile, start)
     })
 
   const run = new Command('run')
     .description('Run a coding agent non-interactively in a new pane')
-    .argument('<level>', 'task level (low, mid, high, etc.)')
+    .argument('<profile>', 'launch profile')
     .allowUnknownOption()
-    .action(async (level: string) => {
-      await dispatchMux('run', level, run)
+    .action(async (profile: string) => {
+      await dispatchMux('run', profile, run)
     })
 
   mux.addCommand(start)

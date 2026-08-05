@@ -30,6 +30,7 @@ function writeTempConfig(content: string): { dir: string; file: string; cleanup:
 function clearEffortEnv() {
   delete process.env.CAGENT_MODEL
   delete process.env.CAGENT_LEVEL
+  delete process.env.CAGENT_PROFILE
   delete process.env.CAGENT_EFFORT
 }
 
@@ -149,6 +150,9 @@ function invocationLog(fake: ReturnType<typeof writeFakeHerdr>): string[] {
 
 const codexConfig = `default_agent: codex
 default_level: mid
+default_profile: mid
+profiles:
+  mid: { agent: codex, model: gpt-5 }
 agents:
   codex:
     bin: codex
@@ -166,6 +170,9 @@ multiplexer:
 
 const opencodeConfig = `default_agent: opencode-go
 default_level: mid
+default_profile: mid
+profiles:
+  mid: { agent: opencode-go, model: gpt-5 }
 agents:
   opencode-go:
     bin: opencode
@@ -332,8 +339,7 @@ describe('mux JSON output', () => {
       expect(output.data.adapter).toBe('herdr')
       expect(output.data.mode).toBe('run')
       expect(output.data.pane_operations).toHaveLength(3)
-      expect(output.warnings).toHaveLength(1)
-      expect(output.warnings[0].code).toBe('UNKNOWN_MODEL')
+      expect(output.warnings).toHaveLength(0)
       expect(String(logSpy.mock.calls[0]?.[0])).not.toContain('# Herdr dry-run')
     } finally {
       warnSpy.mockRestore()
