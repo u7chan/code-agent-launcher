@@ -13,7 +13,7 @@ describe('opencodeGoAdapter', () => {
     expect(
       opencodeGoAdapter.buildRunCommand({
         ...baseContext,
-        modelId: 'opencode-go/model',
+        modelId: 'model',
         extraArgs: ['prompt'],
       }),
     ).toEqual({ command: 'opencode', args: ['run', '--model', 'opencode-go/model', 'prompt'] })
@@ -23,7 +23,7 @@ describe('opencodeGoAdapter', () => {
     expect(
       opencodeGoAdapter.buildStartCommand?.({
         ...baseContext,
-        modelId: 'opencode-go/model',
+        modelId: 'model',
         extraArgs: [],
       }),
     ).toEqual({ command: 'opencode', args: ['--model', 'opencode-go/model'] })
@@ -76,6 +76,27 @@ describe('opencodeGoAdapter', () => {
         extraArgs: ['prompt'],
       }),
     ).toEqual({ command: 'opencode', args: ['run', '--model', 'opencode-go/model', 'prompt'] })
+  })
+
+  it('does not prefix an already qualified model ID twice', () => {
+    expect(
+      opencodeGoAdapter.buildRunCommand({
+        ...baseContext,
+        modelId: 'opencode-go/model',
+        extraArgs: [],
+      }),
+    ).toEqual({ command: 'opencode', args: ['run', '--model', 'opencode-go/model'] })
+  })
+
+  it('preserves model IDs when provider prefixing is disabled', () => {
+    expect(
+      opencodeGoAdapter.buildRunCommand({
+        ...baseContext,
+        config: { ...config, model_id_prefix: false },
+        modelId: 'model',
+        extraArgs: [],
+      }),
+    ).toEqual({ command: 'opencode', args: ['run', '--model', 'model'] })
   })
 
   it('builds a models list command', () => {

@@ -60,6 +60,13 @@ describe('OpenCode validation matrix', () => {
         'opencode-go',
       ),
     ).toBe(false)
+    expect(
+      assertDryRunModel(
+        'opencode run --model deepseek-v4-flash hello',
+        'opencode-go/deepseek-v4-flash',
+        'opencode-go',
+      ),
+    ).toBe(false)
   })
 
   it('rejects OpenCode model when agent is codex', () => {
