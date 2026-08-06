@@ -308,17 +308,17 @@ describe('github-release repository contract', () => {
 
     expect(agents).toContain('.agents/skills/github-release/SKILL.md')
     for (const heading of [
-      'Linuxへのinstall',
-      'Update',
-      'Release integrityとattestation',
-      'Uninstall',
-      'Support範囲',
+      'Linuxへのインストール',
+      '更新',
+      'リリースの完全性とアテステーション',
+      'アンインストール',
+      'サポート範囲',
     ]) {
       expect(readme).toContain(heading)
     }
-    expect(releasing).toContain('Prepare: Version更新PR')
-    expect(releasing).toContain('Start: merge後のtag push')
-    expect(releasing).toContain('初回Release rehearsal checklist')
+    expect(releasing).toContain('Prepare: バージョン更新PR')
+    expect(releasing).toContain('Start: マージ後のタグをプッシュ')
+    expect(releasing).toContain('初回リリースのリハーサルチェックリスト')
     expect(skill).toContain('新たな明示承認')
     expect(skill).toContain('merge待ちで停止する')
   })
