@@ -157,12 +157,8 @@ export function assertDryRunModel(
 ): boolean {
   const normalized = output.replace(/'/g, '')
   if (agentName === 'codex') return normalized.includes(`codex exec --model ${expectedModel}`)
-  if (agentName === 'opencode-go') {
-    if (normalized.includes(`opencode run --model ${expectedModel}`)) return true
-    const bare = expectedModel.replace(/^opencode-go\//, '')
-    if (bare !== expectedModel && normalized.includes(`opencode run --model ${bare}`)) return true
-    return false
-  }
+  if (agentName === 'opencode-go')
+    return normalized.includes(`opencode run --model ${expectedModel}`)
   return false
 }
 
